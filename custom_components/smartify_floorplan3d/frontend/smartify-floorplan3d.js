@@ -1739,6 +1739,7 @@ button.b.warn { color: var(--error-color, #db4437); border-color: currentColor; 
 .light-picker .light-results { display: flex; flex-direction: column; gap: 2px; max-height: min(240px, 40vh);
   overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--divider-color, #8885);
   border-radius: 8px; padding: 4px; background: var(--card-background-color, #fff); }
+.light-picker .light-results[hidden] { display: none; }
 .light-picker .light-option { display: flex; flex-direction: column; gap: 2px; width: 100%; min-width: 0; text-align: left;
   font: inherit; font-size: 13px; padding: 8px 10px; border: 0; border-radius: 6px; cursor: pointer;
   color: var(--primary-text-color); background: transparent; overflow-wrap: anywhere; }
