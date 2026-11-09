@@ -1732,6 +1732,20 @@ button.b.warn { color: var(--error-color, #db4437); border-color: currentColor; 
 .panel input, .panel select { font: inherit; font-size: 14px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--divider-color, #8886);
   background: var(--card-background-color, #fff); color: var(--primary-text-color); min-width: 0; }
 .panel .row { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
+.panel, .panel .full { min-width: 0; }
+.panel .full > * { min-width: 0; max-width: 100%; }
+.light-picker { position: relative; display: flex; flex-direction: column; gap: 6px; width: 100%; min-width: 0; }
+.light-picker input { width: 100%; box-sizing: border-box; }
+.light-picker .light-results { display: flex; flex-direction: column; gap: 2px; max-height: min(240px, 40vh);
+  overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--divider-color, #8885);
+  border-radius: 8px; padding: 4px; background: var(--card-background-color, #fff); }
+.light-picker .light-option { display: flex; flex-direction: column; gap: 2px; width: 100%; min-width: 0; text-align: left;
+  font: inherit; font-size: 13px; padding: 8px 10px; border: 0; border-radius: 6px; cursor: pointer;
+  color: var(--primary-text-color); background: transparent; overflow-wrap: anywhere; }
+.light-picker .light-option:hover, .light-picker .light-option:focus-visible { background: var(--secondary-background-color, #eee); outline: 1px solid var(--primary-color); }
+.light-picker .light-option[aria-selected="true"] { background: color-mix(in srgb, var(--primary-color) 12%, var(--card-background-color, #fff)); }
+.light-picker .light-option small, .light-picker .light-empty { color: var(--secondary-text-color); font-size: 11px; }
+.light-picker .light-empty { padding: 8px; }
 details { border: 1px solid var(--divider-color, #8885); border-radius: 10px; padding: 8px 10px; }
 details summary { cursor: pointer; font-size: 14px; }
 details .panel { border: 0; padding: 8px 0 0; }
@@ -2055,6 +2069,86 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
     i.addEventListener('change', () => cb(i.value.trim()));
     return i;
   }
+  // Eingebettete Entitaetsuche statt HA-Dropdown: bleibt auch in schmalen/scrollbaren Editoren sichtbar.
+  _lightPicker(value, cb) {
+    const wrap = document.createElement('div');
+    wrap.className = 'light-picker';
+    const input = document.createElement('input');
+    input.type = 'search';
+    input.autocomplete = 'off';
+    input.placeholder = 'Leuchte suchen (Name oder light.*)';
+    input.setAttribute('aria-label', 'Licht-Entität suchen');
+    input.value = value || '';
+    const results = document.createElement('div');
+    results.className = 'light-results';
+    results.setAttribute('role', 'listbox');
+    results.setAttribute('aria-label', 'Verfügbare Licht-Entitäten');
+    results.hidden = true;
+    const entities = Object.entries((this._hass && this._hass.states) || {})
+      .filter(([id]) => id.startsWith('light.') || id.startsWith('switch.'))
+      .map(([id, state]) => ({ id, name: String((state.attributes && state.attributes.friendly_name) || id) }))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    const paint = () => {
+      const search = input.value.trim().toLocaleLowerCase();
+      const matches = entities.filter(e => !search || e.id.toLocaleLowerCase().includes(search) || e.name.toLocaleLowerCase().includes(search));
+      results.replaceChildren();
+      matches.slice(0, 60).forEach(e => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'light-option';
+        button.setAttribute('role', 'option');
+        button.setAttribute('aria-selected', String(e.id === value));
+        const name = document.createElement('span');
+        name.textContent = e.name;
+        const entity = document.createElement('small');
+        entity.textContent = e.id;
+        button.append(name, entity);
+        button.addEventListener('click', () => {
+          value = e.id;
+          input.value = e.id;
+          results.hidden = true;
+          cb(e.id);
+        });
+        results.appendChild(button);
+      });
+      if (!matches.length) {
+        const empty = document.createElement('div');
+        empty.className = 'light-empty';
+        empty.textContent = 'Keine passende Licht-Entität gefunden';
+        results.appendChild(empty);
+      }
+      if (matches.length > 60) {
+        const more = document.createElement('div');
+        more.className = 'light-empty';
+        more.textContent = 'Weitere Treffer: Suche genauer eingrenzen';
+        results.appendChild(more);
+      }
+    };
+    input.addEventListener('focus', () => { paint(); results.hidden = false; });
+    input.addEventListener('input', () => { paint(); results.hidden = false; });
+    input.addEventListener('keydown', ev => {
+      if (ev.key === 'Escape') { results.hidden = true; input.blur(); }
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        const id = input.value.trim();
+        if (!id || entities.some(e => e.id === id)) {
+          value = id;
+          results.hidden = true;
+          cb(id);
+        }
+      }
+    });
+    input.addEventListener('change', () => {
+      const id = input.value.trim();
+      if (!id || entities.some(e => e.id === id)) {
+        if (id !== value) { value = id; cb(id); }
+      } else {
+        input.value = value || '';
+      }
+    });
+    wrap.append(input, results);
+    return wrap;
+  }
   _iconInput(value, cb) {
     if (customElements.get('ha-icon-picker')) {
       const p = document.createElement('ha-icon-picker');
@@ -2139,7 +2233,7 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
         after();
       };
       panel.innerHTML += '<h4>Leuchte „' + esc(k) + '“' + ((this._lights || {})[k] ? '' : ' (eigene)') + '</h4>';
-      panel.appendChild(this._field('Licht-Entität', this._picker(o.entity, v => setL(x => { x.entity = v; }), ['light', 'switch']), true));
+      panel.appendChild(this._field('Licht-Entität', this._lightPicker(o.entity, v => setL(x => { x.entity = v; })), true));
       panel.appendChild(this._field('Symbol statt Scheibe (leer = Scheibe)', this._iconInput(o.icon, v => setL(x => { if (v) x.icon = v; else delete x.icon; })), true));
       panel.appendChild(this._field('Größe Scheibe (m)', this._input(o.size !== undefined ? o.size : '', v => setL(x => { if (String(v).trim()) x.size = num(v, 0.4); else delete x.size; }), 'number', '0.4')));
       panel.appendChild(this._field('Lichtstärke (1 = normal)', this._input(o.power !== undefined ? o.power : '', v => setL(x => { if (String(v).trim()) x.power = num(v, 1); else delete x.power; }), 'number', '1')));
