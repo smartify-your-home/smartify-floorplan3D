@@ -1,0 +1,101 @@
+# smartify Floorplan 3D
+
+Drehbarer 3D-Grundriss als Home-Assistant-Integration: liefert die Lovelace-Karte aus, verwaltet die Plan-Dateien (Geschosse und Bereiche) und bringt einen Editor mit Import und Drag & Drop.
+
+## Installation über HACS
+
+1. HACS → Benutzerdefinierte Repositories → `https://github.com/smartify-your-home/smartify-floorplan3d`, Typ **Integration**.
+2. „smartify Floorplan 3D“ installieren und Home Assistant neu starten.
+3. Einstellungen → Geräte & Dienste → Integration hinzufügen → **smartify Floorplan 3D**.
+
+Die Karte wird danach in allen Dashboards automatisch geladen, eine Ressource muss nicht eingetragen werden.
+Wer die Karte bisher als Ressource `/local/smartify-floorplan3d.js` eingetragen hatte, entfernt diesen Eintrag.
+
+## Plan-Dateien und Pakete importieren
+
+Pläne liegen unter `/config/smartify_floorplan3d/` (Modelle und Texturen unter `assets/<plan>/`) und sind nur angemeldet erreichbar.
+
+- **Im Karten-Editor:** Dashboard bearbeiten → Karte öffnen → **Pläne** → „Plan importieren …“. Es gehen einzelne `.json`-Pläne oder `.zip`-Pakete. „Als Ansicht“ nimmt einen Plan in den Geschoss-Umschalter auf. Offene Karten laden geänderte Pläne sofort neu.
+- **Dienst `smartify_floorplan3d.import_plan`:** aus einer Datei unter `/config` (`path:`) oder von einer URL (`url:`), jeweils `.json` oder `.zip`; optional `file` und `overwrite`.
+- **Dienst `smartify_floorplan3d.delete_plan`:** `file: garten.json` (löscht auch die Paketdateien).
+
+Ein Paket ist ein Zip mit der Plan-Datei (`plan.json` oder genau eine `.json` im Hauptordner) und den Dateien, auf die sie verweist:
+
+```
+eg.zip
+├── plan.json
+├── models/sofa.glb
+└── textures/parkett.jpg
+```
+
+Erlaubt sind `.glb .gltf .bin .jpg .jpeg .png .webp .ktx2`, entpackt höchstens 80 MB. Fehlt eine Datei, auf die der Plan verweist, wird das Paket abgelehnt. Import und Löschen sind Administratoren vorbehalten.
+
+## Karte
+
+```yaml
+type: custom:smartify-floorplan3d
+floors:
+  - eg                       # Plan eg.json
+  - og
+  - id: wohnen               # Bereich: Ausschnitt aus dem EG
+    name: Wohnen
+    files: [eg.json]
+    region: [wohnen, kueche]
+  - id: aussen               # mehrere Pläne zu einer Ansicht zusammensetzen
+    name: Außen
+    files: [eg.json, garten.json]
+```
+
+| Option | Bedeutung |
+|---|---|
+| `floors[].files` | Plan-Dateien der Ansicht, Standard `<id>.json` |
+| `floors[].region` | Ausschnitt: Raum-Schlüssel, Liste davon oder `[x0, y0, x1, y1]` in Metern |
+| `floors[].clip` | `false` zeigt beim Ausschnitt auch die Umgebung |
+| `model_lights` | Leuchten: `wohnen: light.x` oder `{entity, pos, size, disc, icon, power, range, type, floor}` |
+| `openings` | Fenster, Türen, Tore: `{contact, cover, card}` je Name aus der Plan-Datei |
+| `elements` | wie bei picture-elements, Position `pos: [x, y]` oder `[x, y, h]`, optional `floor` |
+| `aspect_ratio` / `height` | Größe der Karte, z. B. `1 / 1` |
+| `walls` | `full` startet mit voller Wandhöhe |
+| `colors` | Farben je Material, z. B. `{ cream: '#3a3a3a', light: '#ffd8a0' }` |
+| `lighting` | `mode: auto` (nach `sun.sun`), `night` oder `day`; `night_ambient` Restlicht nachts (0.22); `shadows: false` ohne Lampenschatten; `sun` andere Sonnen-Entität |
+| `plans_path` | nur ohne Integration: Ordner unter `/local`, z. B. `/local/smartify-floorplan3d/` |
+
+### Licht
+
+Jede gebundene Leuchte ist eine echte Lichtquelle: Deckenleuchten strahlen als weicher Spot nach unten, Steh- und Tischlampen (`type: lamp`) rundum. Das Licht nimmt mit der Entfernung ab und endet an Wänden (Lampenschatten), die Ecke unter einer Lampe ist also heller als der Rest des Raums. Helligkeit, Farbe und Farbtemperatur kommen von der Licht-Entität. Nachts (Sonne unter dem Horizont) wird das Tageslicht gedimmt; der Knopf in der Werkzeugleiste schaltet automatisch / Nacht / Tag.
+
+### Drag & Drop
+
+Im Karten-Editor die Ansicht wählen, dann:
+
+- **+ Element**: in den Plan tippen, Entität wählen.
+- **+ Leuchte**: eigene Leuchte an beliebiger Stelle.
+- Symbole ziehen verschiebt (5-cm-Raster), antippen öffnet Entität, Symbol, Höhe, Tippen-Aktion und Entfernen.
+- Gestrichelte Leuchten sind Raumleuchten des Plans ohne zugeordnetes Licht.
+
+## Format der Plan-Dateien
+
+Version 2, Koordinaten in Metern, x von West, y von Nord. Alle Pläne eines Hauses teilen sich ein Koordinatensystem, damit Geschosse und Bereiche passgenau zusammengesetzt werden können. Die Optik steckt vollständig im Plan, die Integration rendert nur.
+
+| Feld | Inhalt |
+|---|---|
+| `id`, `name`, `size`, `heights`, `level` | Kopf |
+| `rooms`, `floors` | Räume mit Belag (`mat`) und Umriss |
+| `walls`, `foot`, `openings`, `stairs`, `decks`, `attika`, `rails` | Bau |
+| `materials` | `{name: {color, roughness, metalness, opacity, emissive, texture, repeat}}`; überschreibt auch Wand, Boden, Glas usw. |
+| `blocks` | Bauteile aus Grundformen: `[art, maße, [x, h, y], [rx, ry, rz]\|0, [sx, sy, sz]\|0, material, oben]`, Arten `box`, `cyl`, `ico`, `sphere`, `ring`, `glb` |
+| `items` | Einrichtung: `{block, pos: [x, y], rot: grad}` |
+| `lights` | Raumleuchten: `{name: {pos: [x, y, h], type, power, range}}` |
+
+Pläne im Format 1 (Einrichtung als Bausteine der eingebauten Bibliothek) laufen weiter. Neue Pläne liefere ich im Format 2 mit „eingefrorener“ Einrichtung, damit ein Update der Integration das Aussehen nicht verändert.
+
+## Entwicklung
+
+```bash
+pip install pytest-homeassistant-custom-component
+pytest -q
+```
+
+## Bewegliche Bauteile (ab 1.3.0)
+
+Raffstores/Jalousien und Sektionaltore lassen sich optional in `openings` definieren und über Home-Assistant-`cover`-Entitäten darstellen. Details, JSON-Beispiele und Grenzen: [Plandateiformat](docs/FLOORPLAN_FORMAT.md). Regeln für Änderungen: [AGENTS.md](AGENTS.md).
