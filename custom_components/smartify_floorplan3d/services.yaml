@@ -1,0 +1,26 @@
+import_plan:
+  fields:
+    path:
+      example: "smartify_import/garten.json"
+      selector:
+        text:
+    url:
+      example: "https://example.com/garten.json"
+      selector:
+        text:
+          type: url
+    file:
+      example: "garten.json"
+      selector:
+        text:
+    overwrite:
+      default: true
+      selector:
+        boolean:
+delete_plan:
+  fields:
+    file:
+      required: true
+      example: "garten.json"
+      selector:
+        text:

@@ -1,0 +1,47 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "smartify Floorplan 3D",
+        "description": "Richtet die 3D-Grundriss-Karte ein. Die Karte wird automatisch in allen Dashboards geladen, Plan-Dateien importierst du im Karten-Editor oder über den Dienst „Plan importieren“."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "smartify Floorplan 3D ist bereits eingerichtet."
+    }
+  },
+  "services": {
+    "import_plan": {
+      "name": "Plan importieren",
+      "description": "Importiert eine Plan-Datei (Geschoss oder Bereich) aus einer Datei unter /config oder von einer URL.",
+      "fields": {
+        "path": {
+          "name": "Pfad",
+          "description": "Datei unter /config, z. B. smartify_import/garten.json."
+        },
+        "url": {
+          "name": "URL",
+          "description": "Adresse, von der die Plan-Datei geladen wird."
+        },
+        "file": {
+          "name": "Dateiname",
+          "description": "Name der gespeicherten Plan-Datei; leer = Name der Quelle bzw. <id>.json."
+        },
+        "overwrite": {
+          "name": "Überschreiben",
+          "description": "Vorhandene Plan-Datei gleichen Namens ersetzen."
+        }
+      }
+    },
+    "delete_plan": {
+      "name": "Plan löschen",
+      "description": "Löscht eine Plan-Datei.",
+      "fields": {
+        "file": {
+          "name": "Dateiname",
+          "description": "z. B. garten.json"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "smartify Floorplan 3D",
+        "description": "Sets up the 3D floor plan card. The card is loaded in every dashboard automatically; import plan files in the card editor or with the \"Import plan\" action."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "smartify Floorplan 3D is already set up."
+    }
+  },
+  "services": {
+    "import_plan": {
+      "name": "Import plan",
+      "description": "Imports a plan file (floor or area) from a file below /config or from a URL.",
+      "fields": {
+        "path": {
+          "name": "Path",
+          "description": "File below /config, e.g. smartify_import/garden.json."
+        },
+        "url": {
+          "name": "URL",
+          "description": "Address to download the plan file from."
+        },
+        "file": {
+          "name": "File name",
+          "description": "Name of the stored plan file; empty = source name or <id>.json."
+        },
+        "overwrite": {
+          "name": "Overwrite",
+          "description": "Replace an existing plan file with the same name."
+        }
+      }
+    },
+    "delete_plan": {
+      "name": "Delete plan",
+      "description": "Deletes a plan file.",
+      "fields": {
+        "file": {
+          "name": "File name",
+          "description": "e.g. garden.json"
+        }
+      }
+    }
+  }
+}
