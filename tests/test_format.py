@@ -32,3 +32,27 @@ def test_invalid_opening_rejected(change):
     change(p)
     with pytest.raises(PlanError):
         validate_plan(p)
+
+
+def test_card_editor_plan_fields_and_copy():
+    p = deepcopy(BASE)
+    p["items"] = [{"block": "boiler", "pos": [1.2, 2.3], "rot": 0}]
+    p["items"].append({**p["items"][0], "pos": [2.2, 3.3]})
+    p["ui_elements"] = [{"entity": "sensor.temperatur", "pos": [1, 2]}]
+    p["model_lights"] = {"licht_1": {"entity": "light.kueche", "pos": [3, 4]}}
+    p["appearance"] = {"background_color": "#142A3C"}
+    assert validate_plan(p) is p
+    assert p["items"][0]["pos"] == [1.2, 2.3]
+    assert p["items"][1]["pos"] == [2.2, 3.3]
+
+
+@pytest.mark.parametrize("field,value", [
+    ("ui_elements", {}), ("model_lights", []), ("appearance", []),
+    ("items", [{"block": "boiler", "pos": ["x", 3]}]),
+    ("appearance", {"background_color": "red"}),
+])
+def test_invalid_card_editor_fields_rejected(field, value):
+    p = deepcopy(BASE)
+    p[field] = value
+    with pytest.raises(PlanError):
+        validate_plan(p)

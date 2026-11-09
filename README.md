@@ -64,14 +64,25 @@ floors:
 
 Jede gebundene Leuchte ist eine echte Lichtquelle: Deckenleuchten strahlen als weicher Spot nach unten, Steh- und Tischlampen (`type: lamp`) rundum. Das Licht nimmt mit der Entfernung ab und endet an Wänden (Lampenschatten), die Ecke unter einer Lampe ist also heller als der Rest des Raums. Helligkeit, Farbe und Farbtemperatur kommen von der Licht-Entität. Nachts (Sonne unter dem Horizont) wird das Tageslicht gedimmt; der Knopf in der Werkzeugleiste schaltet automatisch / Nacht / Tag.
 
-### Drag & Drop
+### Bearbeiten direkt auf der Karte (ab 1.4.0)
 
-Im Karten-Editor die Ansicht wählen, dann:
+Die Karte besitzt ein **Stift-Symbol**. Es öffnet eine bildschirmfüllende
+2D-Draufsicht, unabhängig vom schmalen Lovelace-Konfigurationseditor:
 
-- **+ Element**: in den Plan tippen, Entität wählen.
-- **+ Leuchte**: eigene Leuchte an beliebiger Stelle.
-- Symbole ziehen verschiebt (5-cm-Raster), antippen öffnet Entität, Symbol, Höhe, Tippen-Aktion und Entfernen.
-- Gestrichelte Leuchten sind Raumleuchten des Plans ohne zugeordnetes Licht.
+- **+ Element**: im Grundriss platzieren und Home-Assistant-Entität auswählen.
+- **+ Leuchte**: hinzufügen, positionieren und eine `light.*`- oder `switch.*`-Entität zuordnen.
+- **3D-Gegenstände** (z. B. Boiler, Möbel, Geräte): Symbol ziehen, antippen und bei Bedarf **Kopieren**, **Drehen** oder **Entfernen**.
+- Positionen folgen einem 5-cm-Raster. Die Kopie eines Objekts nutzt denselben
+  3D-Baustein mit eigenen Koordinaten.
+- **Änderungen im Plan speichern** schreibt die 3D-Objektpositionen, neue
+  Entitätsmarker, Leuchtenzuordnungen und die Plan-Hintergrundfarbe in die
+  jeweiligen JSON-Dateien. Ohne Speichern bleiben die Änderungen unveröffentlicht.
+- Unter **Weitere Einstellungen** kann die Karten-Hintergrundfarbe
+  über `background_color: '#f3f3f3'` überschrieben werden.
+
+Direktes Speichern erfordert Administratorrechte und die HA-Integration.
+Die Kartenkonfiguration bleibt für Grundeinstellungen und Planverwaltung vorgesehen.
+
 
 ## Format der Plan-Dateien
 

@@ -58,3 +58,36 @@ Die Karte nutzt `current_position` und `current_tilt_position` (je 0–100) aus 
 ## Qualitätssicherung
 
 Neue Pläne mit `validate_plan()` prüfen; Musterdateien `examples/plans/eg.json`, `og.json` als Grundlage nutzen. Namen müssen eindeutig sein. Auf passende Aussparungen in Wänden sowie geschlossene/offene Tor- und Raffstore-Positionen testen. Bei Formatänderungen Beispiele, Tests, `AGENTS.md` und dieses Dokument aktualisieren.
+
+
+## Kartenbasierte 2D-Bearbeitung (ab App-Version 1.4.0)
+
+Das Stift-Symbol auf der **3D-Karte** öffnet eine bildschirmfüllende 2D-Draufsicht.
+Hier lassen sich planbasierte 3D-Gegenstände (`items`) verschieben, drehen,
+**kopieren** und löschen. Die Kopie referenziert denselben Baustein (`block`),
+hat aber eine eigene `pos: [x, y]` (Meter). Änderungen werden erst über
+**Änderungen im Plan speichern** dauerhaft in die originale JSON-Datei des
+jeweiligen Geschossplans geschrieben. Schließen ohne Speichern verwirft die Änderungen.
+
+Die JSON-Datei darf darüber hinaus die folgenden optionalen Felder enthalten:
+
+```json
+{
+  "items": [{"block":"boiler_1", "pos":[2.0,3.5], "rot":0}],
+  "ui_elements": [{"entity":"sensor.boiler_temperatur", "type":"state-icon", "pos":[2.0,3.5]}],
+  "model_lights": {"licht_1":{"entity":"light.keller", "pos":[3.0,4.0]}},
+  "appearance": {"background_color":"#F3F3F3"}
+}
+```
+
+`ui_elements` und `model_lights` werden zusätzlich zu bestehenden
+Karten-Konfigurationswerten ausgewertet. Für die 3D-Objekte bleiben `items`
+und `blocks` maßgeblich. Die Karte kann alternativ die Farbe mit dem YAML-Feld
+`background_color` (höhere Priorität) überschreiben.
+
+**Hinweis:** Das direkte Speichern erfordert die HA-Integration, einen administrativen
+Home-Assistant-Benutzer und schreibbare, über die Integration verwaltete Pläne.
+Pläne aus `plans_path` bzw. fremden URLs sind in diesem Modus nur lesbar.
+Bei Ansichten aus mehreren Plan-Dateien werden bestehende `items` in ihrer
+ursprünglichen Datei gespeichert; neue Entitäten und Leuchten gehören zur ersten
+Datei dieser Ansicht.

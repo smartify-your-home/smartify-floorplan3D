@@ -5,7 +5,7 @@
  * Elemente wie bei picture-elements (state-icon, state-label, custom:...) mit pos: [x, y] bzw. [x, y, h] in Plan-Metern;
  * am einfachsten im Karten-Editor per Drag & Drop in der Draufsicht platzieren. */
 (() => {
-const VERSION = '1.3.0';
+const VERSION = '1.4.0';
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js';
 const CTRL_URL = 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js';
 
@@ -1110,6 +1110,7 @@ class SmartifyFloorplan3d extends HTMLElement {
     if (this._ready) { this._resize(); this._start(); } else if (!this._loading) this._init();
   }
   disconnectedCallback() {
+    this._closePlanEditor();
     cancelAnimationFrame(this._raf); this._raf = 0;
     if (this._unsub) { this._unsub.then(u => u && u()); this._unsub = null; }
   }
@@ -1125,6 +1126,7 @@ class SmartifyFloorplan3d extends HTMLElement {
       '<button data-a="rot" title="90° drehen"><ha-icon icon="mdi:rotate-right"></ha-icon></button>' +
       '<button data-a="wall" title="Volle Wandhöhe" aria-pressed="false"><ha-icon icon="mdi:wall"></ha-icon></button>' +
       '<button data-a="light" title="Licht"><ha-icon icon="mdi:theme-light-dark"></ha-icon></button>' +
+      '<button data-a="edit" title="Grundriss auf dieser Karte bearbeiten"><ha-icon icon="mdi:pencil-ruler"></ha-icon></button>' +
       '</div><div class="coord" hidden></div><div class="msg" hidden></div>' +
       '<div class="dock" hidden><button class="x" title="Schließen">✕</button><div class="slot"></div></div></div></ha-card>';
     this._q = s => root.querySelector(s);
@@ -1340,7 +1342,7 @@ class SmartifyFloorplan3d extends HTMLElement {
     this._sizeWrap();
     m.buildWalls(this._full ? this._M.FULL : this._M.HALF);
     // model_lights.<name>: light.x  oder  { entity: light.x, pos: [x, y, h], size: 0.4, disc: false }
-    const ml = cfg.model_lights || {};
+    const ml = Object.assign({}, ...((this._parts || []).map(p => p.model_lights || {})), cfg.model_lights || {});
     this._lights = {}; this._lampIcons = [];
     if (m.resetLights) m.resetLights();
     Object.keys(ml).forEach(k => {
@@ -1367,6 +1369,8 @@ class SmartifyFloorplan3d extends HTMLElement {
     this._q('[data-a="wall"]').setAttribute('aria-pressed', String(this._full));
     this._lightState = {};
     this._opState = {};
+    const color = cfg.background_color || ((this._parts || [])[0]?.appearance || {}).background_color;
+    this._q('.wrap').style.background = color || 'var(--card-background-color, transparent)';
     this._dirty = true;
     this._applyStates(true);
   }
@@ -1374,7 +1378,8 @@ class SmartifyFloorplan3d extends HTMLElement {
   // ----- Elemente wie bei picture-elements, verankert an einem Punkt im Raum
   async _buildElements() {
     const layer = this._q('.layer'), T = this._T, floor = this._floor;
-    const els = ((this._config && this._config.elements) || []).filter(ec => ec.floor === undefined || this._floorIds.includes(String(ec.floor)));
+    const allElements = ((this._config && this._config.elements) || []).concat(...((this._parts || []).map(p => p.ui_elements || [])));
+    const els = allElements.filter(ec => ec.floor === undefined || this._floorIds.includes(String(ec.floor)));
     const helpers = window.loadCardHelpers ? await window.loadCardHelpers() : null;
     if (floor !== this._floor) return;   // inzwischen umgeschaltet
     layer.textContent = '';
@@ -1568,6 +1573,60 @@ class SmartifyFloorplan3d extends HTMLElement {
     this._q('.dock .slot').textContent = '';
   }
 
+  // Vollbild-Draufsicht: Bearbeitung findet auf der Karte statt, nicht in der Lovelace-Konfiguration.
+  _openPlanEditor() {
+    if (this._planOverlay || !this._hass || !this._parts) return;
+    if (!this._hass.user || !this._hass.user.is_admin) {
+      this._message('Zum Speichern der Gebäudepläne sind Administratorrechte erforderlich.'); return;
+    }
+    if (!hasIntegration(this._hass) || (this._config || {}).plans_path) {
+      this._message('Für die Bearbeitung direkt auf der Karte müssen Pläne über die Smartify-Integration geladen werden.'); return;
+    }
+    const view = this._floorList().find(v => v.id === this._floor);
+    if (!view) return;
+    const host = document.createElement('div');
+    host.className = 'smartify-plan-modal';
+    host.style.cssText = 'position:fixed;inset:0;z-index:2147483640;display:flex;flex-direction:column;background:var(--primary-background-color,#fafafa);color:var(--primary-text-color,#222);padding:max(12px,env(safe-area-inset-top)) 14px max(12px,env(safe-area-inset-bottom));box-sizing:border-box;';
+    const bar = document.createElement('div');
+    bar.style.cssText = 'display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-bottom:8px;';
+    const title = document.createElement('strong'); title.textContent = '2D-Grundriss bearbeiten – ' + view.name;
+    const info = document.createElement('span'); info.style.cssText = 'font-size:12px;opacity:.75;flex:1;';
+    info.textContent = 'Elemente, Leuchten und Gegenstände ziehen, kopieren oder drehen';
+    const close = document.createElement('button'); close.textContent = 'Schließen'; close.type = 'button';
+    close.style.cssText = 'font:inherit;padding:8px 12px;border-radius:8px;cursor:pointer;';
+    close.addEventListener('click', () => {
+      const editor = host.querySelector('smartify-floorplan3d-editor');
+      if (editor && editor._modified && !confirm('Ungespeicherte Änderungen verwerfen?')) return;
+      this._closePlanEditor();
+    });
+    bar.append(title, info, close);
+    const scroll = document.createElement('div'); scroll.style.cssText = 'flex:1;min-height:0;overflow:auto;';
+    const editor = document.createElement('smartify-floorplan3d-editor');
+    editor._cardMode = true;
+    editor._cardView = view;
+    editor._cardFiles = view.files;
+    editor._cardParts = this._parts.map(p => JSON.parse(JSON.stringify(p)));
+    const base = editor._cardParts[0] || {};
+    editor.setConfig(Object.assign({}, this._config, {
+      floors: [{ id: view.id, name: view.name, files: view.files, region: view.region }],
+      elements: JSON.parse(JSON.stringify(base.ui_elements || [])),
+      model_lights: JSON.parse(JSON.stringify(base.model_lights || {}))
+    }));
+    editor.hass = this._hass;
+    const saved = () => { this._closePlanEditor(); this._switchFloor(this._floor); };
+    editor.addEventListener('plan-saved', saved, { once: true });
+    scroll.appendChild(editor);
+    host.append(bar, scroll);
+    document.body.appendChild(host);
+    this._planOverlay = host;
+  }
+  _closePlanEditor() {
+    if (this._planOverlay) { this._planOverlay.remove(); this._planOverlay = null; }
+  }
+  _message(msg) {
+    const el = this._q('.msg'); el.hidden = false; el.textContent = msg;
+  }
+
   // ----- Kamera
   _fit(polar) {
     const cam = this._camera, v = cam.fov * Math.PI / 360, hh = Math.atan(Math.tan(v) * cam.aspect);
@@ -1587,6 +1646,7 @@ class SmartifyFloorplan3d extends HTMLElement {
     } else this._anim = { p0: this._camera.position.clone(), t0: this._controls.target.clone(), p1: p, t1: t, s: performance.now() };
   }
   _tool(a) {
+    if (a === 'edit') { this._openPlanEditor(); return; }
     if (a === 'floor') {
       const l = this._floorList(), i = l.findIndex(f => f.id === this._floor);
       this._switchFloor(l[(i + 1) % l.length].id);
@@ -1720,6 +1780,9 @@ button.b.warn { color: var(--error-color, #db4437); border-color: currentColor; 
   background: var(--card-background-color, #fff); color: var(--primary-color); border: 2px solid var(--primary-color);
   box-shadow: 0 1px 4px rgba(0, 0, 0, .3); --mdc-icon-size: 18px; touch-action: none; }
 .mk.light { color: #b27b00; border-color: #e0a800; }
+.ed.card-edit .mk:not(.light) { background: color-mix(in srgb, var(--primary-color) 10%, var(--card-background-color,#fff)); }
+.ed.card-edit .mk .lbl { display:none; }
+.ed.card-edit .mk:hover .lbl, .ed.card-edit .mk.sel .lbl { display:block; z-index:2; }
 .mk.light.free { opacity: .55; border-style: dashed; }
 .mk.sel { outline: 3px solid color-mix(in srgb, var(--primary-color) 45%, transparent); outline-offset: 2px; z-index: 2; }
 .mk:active { cursor: grabbing; }
@@ -1734,19 +1797,18 @@ button.b.warn { color: var(--error-color, #db4437); border-color: currentColor; 
 .panel .row { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
 .panel, .panel .full { min-width: 0; }
 .panel .full > * { min-width: 0; max-width: 100%; }
-.light-picker { position: relative; display: flex; flex-direction: column; gap: 6px; width: 100%; min-width: 0; }
-.light-picker input { width: 100%; box-sizing: border-box; }
-.light-picker .light-results { display: flex; flex-direction: column; gap: 2px; max-height: min(240px, 40vh);
-  overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--divider-color, #8885);
-  border-radius: 8px; padding: 4px; background: var(--card-background-color, #fff); }
-.light-picker .light-results[hidden] { display: none; }
-.light-picker .light-option { display: flex; flex-direction: column; gap: 2px; width: 100%; min-width: 0; text-align: left;
-  font: inherit; font-size: 13px; padding: 8px 10px; border: 0; border-radius: 6px; cursor: pointer;
-  color: var(--primary-text-color); background: transparent; overflow-wrap: anywhere; }
-.light-picker .light-option:hover, .light-picker .light-option:focus-visible { background: var(--secondary-background-color, #eee); outline: 1px solid var(--primary-color); }
-.light-picker .light-option[aria-selected="true"] { background: color-mix(in srgb, var(--primary-color) 12%, var(--card-background-color, #fff)); }
-.light-picker .light-option small, .light-picker .light-empty { color: var(--secondary-text-color); font-size: 11px; }
-.light-picker .light-empty { padding: 8px; }
+@media (max-width: 700px) { .panel { grid-template-columns: 1fr; } }
+.ed.card-edit { max-width: 1120px; margin: auto; padding: 4px; }
+.ed:not(.card-edit) > .tabs, .ed:not(.card-edit) > .bar, .ed:not(.card-edit) > .plan, .ed:not(.card-edit) > .sel { display:none; }
+.ed.card-edit .plan { max-height: 70vh; overflow: hidden; }
+.ed.card-edit .plans-box, .ed.card-edit .more-box { display: none; }
+.ed.card-edit .bar.savebar { position:sticky;top:0;z-index:10;background:var(--primary-background-color,#fafafa);padding:8px 0; }
+.light-picker { display:flex;flex-direction:column;gap:4px; min-width:0; }
+.light-picker input { width:100%;box-sizing:border-box; }
+.light-picker .light-results { max-height:220px;overflow:auto;border:1px solid var(--divider-color,#8885);border-radius:8px;background:var(--card-background-color,#fff); }
+.light-picker .light-results[hidden] { display:none; }
+.light-picker button { display:block;width:100%;text-align:left;padding:9px;border:0;background:transparent;color:var(--primary-text-color);cursor:pointer;white-space:normal;overflow-wrap:anywhere; }
+.light-picker button:hover { background:var(--secondary-background-color,#eee); }
 details { border: 1px solid var(--divider-color, #8885); border-radius: 10px; padding: 8px 10px; }
 details summary { cursor: pointer; font-size: 14px; }
 details .panel { border: 0; padding: 8px 0 0; }
@@ -1788,11 +1850,13 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
   connectedCallback() {
     if (this.shadowRoot) return;
     const root = this.attachShadow({ mode: 'open' });
-    root.innerHTML = '<style>' + ED_CSS + '</style><div class="ed"><div class="tabs"></div><div class="bar">' +
+    root.innerHTML = '<style>' + ED_CSS + '</style><div class="ed' + (this._cardMode ? ' card-edit' : '') + '"><div class="tabs"></div><div class="bar">' +
       '<button class="b" data-a="add">+ Element</button><button class="b" data-a="addlight">+ Leuchte</button>' +
       '<span class="hint"></span></div><div class="plan"><svg></svg></div><div class="err" hidden></div><div class="sel"></div>' +
-      '<details class="pl" open><summary>Pläne</summary><div class="plans"></div></details>' +
-      '<details><summary>Weitere Einstellungen</summary><div class="panel more"></div></details></div>';
+      (this._cardMode ? '<div class="bar savebar"><button class="b" data-save="yes">Änderungen im Plan speichern</button><span class="hint">Positionen werden in der jeweiligen JSON-Datei gespeichert.</span></div>' : '') +
+      (!this._cardMode ? '<p class="hint">Entitäten, Leuchten und 3D-Gegenstände bearbeitest du direkt auf der Karte über das Stift-Symbol.</p>' : '') +
+      '<details class="pl plans-box" open><summary>Pläne</summary><div class="plans"></div></details>' +
+      '<details class="more-box"><summary>Weitere Einstellungen</summary><div class="panel more"></div></details></div>';
     this._q = s => root.querySelector(s);
     this._q('.bar').addEventListener('click', ev => {
       const b = ev.target.closest('button');
@@ -1801,9 +1865,10 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
       this._renderBar();
     });
     this._wirePlan();
+    if (this._cardMode) this._q('[data-save]').addEventListener('click', () => this._savePlanEdits());
     this._loadPickers();
     this._load();
-    this._renderPlans();
+    if (!this._cardMode) this._renderPlans();
   }
   // HA lädt ha-entity-picker erst bei Bedarf: über den Editor einer Standardkarte nachladen
   async _loadPickers() {
@@ -1817,6 +1882,7 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
     } catch (e) { /* Textfeld als Ersatz */ }
   }
   _fire() {
+    if (this._cardMode) { this._modified = true; return; }
     this._sent = JSON.stringify(this._config);
     this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config }, bubbles: true, composed: true }));
   }
@@ -1837,7 +1903,7 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
     const v = views.find(x => x.id === this._view), seq = this._seq = (this._seq || 0) + 1, err = this._q('.err');
     try {
       await this._hassReady;
-      const parts = await Promise.all(v.files.map(f => loadPlan(planSource(this._config, this._hass, f), this._hass)));
+      const parts = this._cardMode ? this._cardParts : await Promise.all(v.files.map(f => loadPlan(planSource(this._config, this._hass, f), this._hass)));
       if (seq !== this._seq) return;
       err.hidden = true;
       this._parts = parts;
@@ -1865,6 +1931,13 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
   }
   _renderBar() {
     this._q('.bar').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(this._placing === b.dataset.a)));
+    if (this._cardMode && !this._q('[data-bg]')) {
+      const lbl = document.createElement('label'); lbl.textContent = 'Hintergrund ';
+      const inp = document.createElement('input'); inp.type = 'color'; inp.dataset.bg = 'yes';
+      inp.value = /^#[0-9a-f]{6}$/i.test(this._cardParts?.[0]?.appearance?.background_color || '') ? this._cardParts[0].appearance.background_color : '#f3f3f3';
+      inp.addEventListener('input', () => { this._modified = true; this._q('.plan').style.background = inp.value; });
+      lbl.appendChild(inp); this._q('.bar').appendChild(lbl);
+    }
     this._q('.plan').classList.toggle('placing', !!this._placing);
     this._q('.hint').textContent = this._placing ? 'In den Plan tippen, um zu platzieren' : 'Symbole ziehen zum Verschieben, antippen zum Bearbeiten';
   }
@@ -1930,8 +2003,12 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
       const p = Array.isArray(o.pos) ? o.pos : home;
       out.push({ id: 'l' + k, kind: 'l', k: k, x: num(p[0], 0), y: num(p[1], 0), o: o, free: !o.entity });
     });
-    // Leuchten unten, Elemente obenauf
-    return out.filter(m => m.kind === 'l').concat(out.filter(m => m.kind === 'e'));
+    if (this._cardMode) (this._parts || []).forEach((part, pi) => (part.items || []).forEach((it, ii) => {
+      if (!it || Array.isArray(it) || !Array.isArray(it.pos) || it.pos.length < 2) return;
+      out.push({ id: 'o' + pi + '_' + ii, kind: 'o', pi, ii, it, x: num(it.pos[0], 0), y: num(it.pos[1], 0) });
+    }));
+    // Leuchten und Gegenstände unten, Entitäten obenauf
+    return out.filter(m => m.kind === 'o').concat(out.filter(m => m.kind === 'l'), out.filter(m => m.kind === 'e'));
   }
   _iconFor(entity, icon) {
     if (icon) return icon;
@@ -1956,12 +2033,12 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
       el.style.left = ((m.x - vb.x) / vb.w * 100) + '%';
       el.style.top = ((m.y - vb.y) / vb.h * 100) + '%';
       const ic = document.createElement('ha-icon');
-      ic.setAttribute('icon', m.kind === 'l' ? (m.o.icon || 'mdi:ceiling-light') : this._iconFor(m.ec.entity, m.ec.icon));
+      ic.setAttribute('icon', m.kind === 'o' ? 'mdi:cube-outline' : m.kind === 'l' ? (m.o.icon || 'mdi:ceiling-light') : this._iconFor(m.ec.entity, m.ec.icon));
       el.appendChild(ic);
       const lb = document.createElement('span');
       lb.className = 'lbl';
       const room = (this._parts || []).map(p => (p.rooms || {})[m.k]).find(Boolean);
-      lb.textContent = m.kind === 'l' ? (m.o.entity ? this._nameFor(m.o.entity) : 'Leuchte ' + (room || m.k)) : this._nameFor(m.ec.entity);
+      lb.textContent = m.kind === 'o' ? (m.it.name || m.it.block || 'Gegenstand ' + (m.ii + 1)) : m.kind === 'l' ? (m.o.entity ? this._nameFor(m.o.entity) : 'Leuchte ' + (room || m.k)) : this._nameFor(m.ec.entity);
       el.appendChild(lb);
       el.title = lb.textContent;
       plan.appendChild(el);
@@ -2014,6 +2091,13 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
     return [p[0], p[1]].concat(h);
   }
   _move(id, p) {
+    if (id[0] === 'o') {
+      const m = /^o(\d+)_(\d+)$/.exec(id);
+      if (!m) return;
+      const item = this._parts[+m[1]]?.items?.[+m[2]];
+      if (item && !Array.isArray(item)) { item.pos = this._setPos(item.pos, p); this._modified = true; }
+      return;
+    }
     this._edit(c => {
       if (id[0] === 'e') {
         const ec = c.elements[+id.slice(1)];
@@ -2070,85 +2154,28 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
     i.addEventListener('change', () => cb(i.value.trim()));
     return i;
   }
-  // Eingebettete Entitaetsuche statt HA-Dropdown: bleibt auch in schmalen/scrollbaren Editoren sichtbar.
   _lightPicker(value, cb) {
-    const wrap = document.createElement('div');
-    wrap.className = 'light-picker';
-    const input = document.createElement('input');
-    input.type = 'search';
-    input.autocomplete = 'off';
-    input.placeholder = 'Leuchte suchen (Name oder light.*)';
-    input.setAttribute('aria-label', 'Licht-Entität suchen');
-    input.value = value || '';
-    const results = document.createElement('div');
-    results.className = 'light-results';
-    results.setAttribute('role', 'listbox');
-    results.setAttribute('aria-label', 'Verfügbare Licht-Entitäten');
-    results.hidden = true;
-    const entities = Object.entries((this._hass && this._hass.states) || {})
+    const box = document.createElement('div'); box.className = 'light-picker';
+    const input = document.createElement('input'); input.type = 'search'; input.value = value || '';
+    input.placeholder = 'Leuchte nach Name oder Entity-ID suchen';
+    const list = document.createElement('div'); list.className = 'light-results'; list.hidden = true;
+    const matches = Object.entries((this._hass && this._hass.states) || {})
       .filter(([id]) => id.startsWith('light.') || id.startsWith('switch.'))
-      .map(([id, state]) => ({ id, name: String((state.attributes && state.attributes.friendly_name) || id) }))
-      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
-    const paint = () => {
-      const search = input.value.trim().toLocaleLowerCase();
-      const matches = entities.filter(e => !search || e.id.toLocaleLowerCase().includes(search) || e.name.toLocaleLowerCase().includes(search));
-      results.replaceChildren();
-      matches.slice(0, 60).forEach(e => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'light-option';
-        button.setAttribute('role', 'option');
-        button.setAttribute('aria-selected', String(e.id === value));
-        const name = document.createElement('span');
-        name.textContent = e.name;
-        const entity = document.createElement('small');
-        entity.textContent = e.id;
-        button.append(name, entity);
-        button.addEventListener('click', () => {
-          value = e.id;
-          input.value = e.id;
-          results.hidden = true;
-          cb(e.id);
-        });
-        results.appendChild(button);
-      });
-      if (!matches.length) {
-        const empty = document.createElement('div');
-        empty.className = 'light-empty';
-        empty.textContent = 'Keine passende Licht-Entität gefunden';
-        results.appendChild(empty);
-      }
-      if (matches.length > 60) {
-        const more = document.createElement('div');
-        more.className = 'light-empty';
-        more.textContent = 'Weitere Treffer: Suche genauer eingrenzen';
-        results.appendChild(more);
-      }
+      .map(([id, state]) => ({ id, name: (state.attributes && state.attributes.friendly_name) || id }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const show = () => {
+      list.replaceChildren(); const q = input.value.trim().toLocaleLowerCase();
+      const rows = matches.filter(x => x.id.toLocaleLowerCase().includes(q) || x.name.toLocaleLowerCase().includes(q)).slice(0, 60);
+      rows.forEach(x => { const b = document.createElement('button'); b.type = 'button'; b.textContent = x.name + ' · ' + x.id;
+        b.addEventListener('click', () => { input.value = x.id; value = x.id; list.hidden = true; cb(x.id); }); list.appendChild(b); });
+      if (!rows.length) { const t = document.createElement('span'); t.textContent = 'Keine passende Entität'; list.appendChild(t); }
+      list.hidden = false;
     };
-    input.addEventListener('focus', () => { paint(); results.hidden = false; });
-    input.addEventListener('input', () => { paint(); results.hidden = false; });
-    input.addEventListener('keydown', ev => {
-      if (ev.key === 'Escape') { results.hidden = true; input.blur(); }
-      if (ev.key === 'Enter') {
-        ev.preventDefault();
-        const id = input.value.trim();
-        if (!id || entities.some(e => e.id === id)) {
-          value = id;
-          results.hidden = true;
-          cb(id);
-        }
-      }
-    });
-    input.addEventListener('change', () => {
-      const id = input.value.trim();
-      if (!id || entities.some(e => e.id === id)) {
-        if (id !== value) { value = id; cb(id); }
-      } else {
-        input.value = value || '';
-      }
-    });
-    wrap.append(input, results);
-    return wrap;
+    input.addEventListener('focus', show); input.addEventListener('input', show);
+    input.addEventListener('keydown', ev => { if (ev.key === 'Escape') { list.hidden = true; input.blur(); }
+      if (ev.key === 'Enter') { ev.preventDefault(); const id = input.value.trim(); if (!id || matches.some(x => x.id === id)) { value = id; list.hidden = true; cb(id); } } });
+    input.addEventListener('change', () => { const id = input.value.trim(); if (!id || matches.some(x => x.id === id)) { if (id !== value) { value = id; cb(id); } } else input.value = value || ''; });
+    box.append(input, list); return box;
   }
   _iconInput(value, cb) {
     if (customElements.get('ha-icon-picker')) {
@@ -2200,7 +2227,31 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
       dl.innerHTML = Object.keys(this._hass.states).sort().map(e => '<option value="' + esc(e) + '">').join('');
       panel.appendChild(dl);
     }
-    if (m.kind === 'e') {
+    if (m.kind === 'o') {
+      const it = m.it;
+      const setItem = fn => { fn(it); this._modified = true; this._renderMarks(); this._renderSel(); };
+      const title = document.createElement('h4'); title.textContent = 'Gegenstand – ' + (it.name || it.block || 'Objekt');
+      panel.appendChild(title);
+      panel.appendChild(this._field('Position (x, y in m)', this._input(it.pos.join(', '), v => {
+        const xy = String(v).split(/[;,\s]+/).map(x => num(x, NaN));
+        if (xy.length >= 2 && xy.slice(0, 2).every(Number.isFinite)) { this._move(m.id, xy.slice(0, 2)); this._renderMarks(); this._renderSel(); }
+      }), true));
+      panel.appendChild(this._field('Drehung (Grad)', this._input(it.rot || 0, v => setItem(x => { x.rot = num(v, 0); }), 'number', '0')));
+      const row = document.createElement('div'); row.className = 'row';
+      row.appendChild(this._button('Kopieren', () => {
+        const part = this._parts[m.pi];
+        const copy = JSON.parse(JSON.stringify(it));
+        copy.pos = [r2(m.x + 0.5), r2(m.y + 0.5)];
+        if (copy.id) { let n = 2, prefix = String(copy.id); while (part.items.some(v => v && v.id === prefix + '_' + n)) n++; copy.id = prefix + '_' + n; }
+        part.items.push(copy);
+        this._modified = true; this._sel = 'o' + m.pi + '_' + (part.items.length - 1);
+        this._renderMarks(); this._renderSel();
+      }));
+      row.appendChild(this._button('Entfernen', () => {
+        this._parts[m.pi].items.splice(m.ii, 1); this._modified = true; this._sel = null; this._renderMarks(); this._renderSel();
+      }, true));
+      panel.appendChild(row);
+    } else if (m.kind === 'e') {
       const i = m.i, ec = m.ec, setE = fn => { this._edit(c => fn(c.elements[i])); after(); };
       const pos = Array.isArray(ec.pos) ? ec.pos : [];
       panel.innerHTML += '<h4>Element</h4>';
@@ -2322,11 +2373,34 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
     });
     this._load(); this._renderPlans();
   }
+  async _savePlanEdits() {
+    const button = this._q('[data-save]');
+    if (!this._hass || !this._cardMode || !this._parts?.length) return;
+    if (!this._hass.user?.is_admin) { alert('Zum Speichern sind Administratorrechte erforderlich.'); return; }
+    button.disabled = true; button.textContent = 'Speichere …';
+    try {
+      const plans = this._parts;
+      // Der erste Plan enthält neu angelegte Entitäten und Leuchten. Möbel/Objekte
+      // bleiben jeweils in dem Plan, zu dem sie ursprünglich gehören.
+      const target = plans[0];
+      target.ui_elements = JSON.parse(JSON.stringify(this._config.elements || []));
+      target.model_lights = JSON.parse(JSON.stringify(this._config.model_lights || {}));
+      target.appearance = Object.assign({}, target.appearance || {}, { background_color: this._q('[data-bg]').value });
+      for (let i = 0; i < plans.length; i++) {
+        await this._hass.callWS({ type: WS + '/plans/import', file: this._cardFiles[i], data: plans[i], overwrite: true });
+        dropPlan(this._cardFiles[i]);
+      }
+      this._modified = false;
+      this.dispatchEvent(new CustomEvent('plan-saved', { bubbles: true, composed: true }));
+    } catch (e) { alert('Plan konnte nicht gespeichert werden: ' + (e?.message || e)); }
+    finally { button.disabled = false; button.textContent = 'Änderungen im Plan speichern'; }
+  }
   // ----- weitere Optionen
   _renderMore() {
     const p = this._q('.more'), cfg = this._config || {};
     p.textContent = '';
     const set = (k, v) => this._edit(c => { if (v === '' || v === undefined) delete c[k]; else c[k] = v; });
+    p.appendChild(this._field('Karten-Hintergrundfarbe', this._input(cfg.background_color || '', v => set('background_color', /^#[0-9a-f]{6}$/i.test(v) ? v : ''), 'text', '#f3f3f3'), true));
     p.appendChild(this._field('Plan-Ordner', this._input(cfg.plans_path || '', v => set('plans_path', v.trim()), 'text', '/local/smartify-floorplan3d/'), true));
     p.appendChild(this._field('Ansichten (eg, og, …)', this._input(viewsOf(cfg).filter(v => !v.region && v.files.length === 1 && v.files[0] === v.id + '.json').length === viewsOf(cfg).length
       ? viewsOf(cfg).map(v => v.id).join(', ') : '', v => {

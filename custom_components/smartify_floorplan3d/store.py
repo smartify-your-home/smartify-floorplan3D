@@ -60,6 +60,20 @@ def validate_plan(data: Any) -> dict[str, Any]:
     for key in ("lights", "rooms", "materials", "blocks"):
         if key in data and not isinstance(data[key], dict):
             raise PlanError(f"Feld '{key}' muss ein Objekt sein")
+    # Kartenbasierter Editor speichert eigene Overlays und die Darstellung im Plan.
+    for key, expected in (("ui_elements", list), ("model_lights", dict), ("appearance", dict)):
+        if key in data and not isinstance(data[key], expected):
+            raise PlanError(f"Feld '{key}' muss {'eine Liste' if expected is list else 'ein Objekt'} sein")
+    for index, item in enumerate(data.get("items") or []):
+        if isinstance(item, dict) and "pos" in item:
+            pos = item["pos"]
+            if not (isinstance(pos, list) and len(pos) >= 2 and
+                    all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in pos[:2])):
+                raise PlanError(f"items[{index}].pos muss [x, y] in Metern enthalten")
+    if "background_color" in data.get("appearance", {}):
+        color = data["appearance"]["background_color"]
+        if not isinstance(color, str) or not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
+            raise PlanError("appearance.background_color muss #RRGGBB sein")
     # Neue Bauteilfelder sind optional: Bestandspläne im Format 2 bleiben gültig.
     opening_names: set[str] = set()
     for index, opening in enumerate(data.get("openings") or []):
