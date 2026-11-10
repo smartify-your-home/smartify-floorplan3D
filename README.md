@@ -66,6 +66,8 @@ Jede gebundene Leuchte ist eine echte Lichtquelle: Deckenleuchten strahlen als w
 
 ### Bearbeiten direkt auf der Karte (ab 1.4.0)
 
+**Korrektur in 1.4.1:** Auch Format-2-Einrichtung (`items` als Objekte) wird in der 2D-Draufsicht fehlerfrei dargestellt. Auf kleinen Bildschirmen erscheinen die Bearbeitungsfelder unter dem Plan; „+ / − / Einpassen“ vergrößert den Grundriss in einer horizontal verschiebbaren Ansicht.
+
 Die Karte besitzt ein **Stift-Symbol**. Es öffnet eine bildschirmfüllende
 2D-Draufsicht, unabhängig vom schmalen Lovelace-Konfigurationseditor:
 

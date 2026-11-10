@@ -27,3 +27,4 @@ jobs:
           python-version: "3.13"
       - run: pip install pytest-homeassistant-custom-component
       - run: pytest -q
+      - run: node tests/test_editor_render.cjs

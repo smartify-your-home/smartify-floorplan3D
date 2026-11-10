@@ -5,7 +5,7 @@
  * Elemente wie bei picture-elements (state-icon, state-label, custom:...) mit pos: [x, y] bzw. [x, y, h] in Plan-Metern;
  * am einfachsten im Karten-Editor per Drag & Drop in der Draufsicht platzieren. */
 (() => {
-const VERSION = '1.4.0';
+const VERSION = '1.4.1';
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js';
 const CTRL_URL = 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js';
 
@@ -1586,21 +1586,21 @@ class SmartifyFloorplan3d extends HTMLElement {
     if (!view) return;
     const host = document.createElement('div');
     host.className = 'smartify-plan-modal';
-    host.style.cssText = 'position:fixed;inset:0;z-index:2147483640;display:flex;flex-direction:column;background:var(--primary-background-color,#fafafa);color:var(--primary-text-color,#222);padding:max(12px,env(safe-area-inset-top)) 14px max(12px,env(safe-area-inset-bottom));box-sizing:border-box;';
+    host.style.cssText = 'position:fixed;inset:0;z-index:2147483640;display:flex;flex-direction:column;background:var(--primary-background-color,#fafafa);color:var(--primary-text-color,#222);padding:max(8px,env(safe-area-inset-top)) 10px max(8px,env(safe-area-inset-bottom));box-sizing:border-box;overflow:hidden;';
     const bar = document.createElement('div');
-    bar.style.cssText = 'display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-bottom:8px;';
+    bar.style.cssText = 'display:flex;align-items:center;gap:10px;padding-bottom:8px;min-width:0;';
     const title = document.createElement('strong'); title.textContent = '2D-Grundriss bearbeiten – ' + view.name;
-    const info = document.createElement('span'); info.style.cssText = 'font-size:12px;opacity:.75;flex:1;';
+    const info = document.createElement('span'); info.style.cssText = 'display:none;';
     info.textContent = 'Elemente, Leuchten und Gegenstände ziehen, kopieren oder drehen';
     const close = document.createElement('button'); close.textContent = 'Schließen'; close.type = 'button';
-    close.style.cssText = 'font:inherit;padding:8px 12px;border-radius:8px;cursor:pointer;';
+    close.style.cssText = 'font:inherit;padding:8px 12px;border-radius:8px;cursor:pointer;margin-left:auto;flex-shrink:0;';
     close.addEventListener('click', () => {
       const editor = host.querySelector('smartify-floorplan3d-editor');
       if (editor && editor._modified && !confirm('Ungespeicherte Änderungen verwerfen?')) return;
       this._closePlanEditor();
     });
     bar.append(title, info, close);
-    const scroll = document.createElement('div'); scroll.style.cssText = 'flex:1;min-height:0;overflow:auto;';
+    const scroll = document.createElement('div'); scroll.style.cssText = 'flex:1;min-height:0;min-width:0;overflow:auto;overscroll-behavior:contain;';
     const editor = document.createElement('smartify-floorplan3d-editor');
     editor._cardMode = true;
     editor._cardView = view;
@@ -1798,9 +1798,18 @@ button.b.warn { color: var(--error-color, #db4437); border-color: currentColor; 
 .panel, .panel .full { min-width: 0; }
 .panel .full > * { min-width: 0; max-width: 100%; }
 @media (max-width: 700px) { .panel { grid-template-columns: 1fr; } }
-.ed.card-edit { max-width: 1120px; margin: auto; padding: 4px; }
-.ed:not(.card-edit) > .tabs, .ed:not(.card-edit) > .bar, .ed:not(.card-edit) > .plan, .ed:not(.card-edit) > .sel { display:none; }
-.ed.card-edit .plan { max-height: 70vh; overflow: hidden; }
+.ed.card-edit { width: 100%; max-width: 1500px; min-width:0; margin: auto; padding: 4px; box-sizing:border-box; }
+.ed:not(.card-edit) > .tabs, .ed:not(.card-edit) > .bar, .ed:not(.card-edit) > .plan-scroll, .ed:not(.card-edit) > .sel { display:none; }
+.plan-scroll { overflow-x:auto; overflow-y:hidden; max-width:100%; border:1px solid var(--divider-color,#8885); border-radius:10px; }
+.ed.card-edit .plan { max-height: none; overflow: hidden; flex-shrink:0; }
+.ed.card-edit .sel { width:100%; min-width:0; overflow:visible; }
+.ed.card-edit .sel:empty { display:none; }
+.ed.card-edit .sel .panel { width:100%; box-sizing:border-box; background:var(--card-background-color,#fff); }
+.ed.card-edit .bar { align-items:center; }
+.zoom-controls { display:flex;justify-content:flex-end;align-items:center;gap:8px; }
+.zoom-controls button { font:inherit;cursor:pointer;border:1px solid var(--divider-color,#8885);color:var(--primary-text-color);background:var(--card-background-color,#fff);border-radius:8px;padding:5px 12px;min-height:36px; }
+.zoom-controls span { min-width:52px;text-align:center;font-size:13px;color:var(--secondary-text-color); }
+@media (max-width:700px) { .ed.card-edit .panel { grid-template-columns:minmax(0,1fr); } .ed.card-edit .panel .full { grid-column:1; } .ed.card-edit .bar { gap:8px; } }
 .ed.card-edit .plans-box, .ed.card-edit .more-box { display: none; }
 .ed.card-edit .bar.savebar { position:sticky;top:0;z-index:10;background:var(--primary-background-color,#fafafa);padding:8px 0; }
 .light-picker { display:flex;flex-direction:column;gap:4px; min-width:0; }
@@ -1852,7 +1861,9 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
     const root = this.attachShadow({ mode: 'open' });
     root.innerHTML = '<style>' + ED_CSS + '</style><div class="ed' + (this._cardMode ? ' card-edit' : '') + '"><div class="tabs"></div><div class="bar">' +
       '<button class="b" data-a="add">+ Element</button><button class="b" data-a="addlight">+ Leuchte</button>' +
-      '<span class="hint"></span></div><div class="plan"><svg></svg></div><div class="err" hidden></div><div class="sel"></div>' +
+      '<span class="hint"></span></div>' +
+      (this._cardMode ? '<div class="zoom-controls" aria-label="Grundriss-Zoom"><button type="button" data-zoom="out" aria-label="Verkleinern">−</button><span data-zoom-value>100 %</span><button type="button" data-zoom="in" aria-label="Vergrößern">+</button><button type="button" data-zoom="fit">Einpassen</button></div>' : '') +
+      '<div class="err" hidden></div><div class="plan-scroll"><div class="plan"><svg></svg></div></div><div class="sel"></div>' +
       (this._cardMode ? '<div class="bar savebar"><button class="b" data-save="yes">Änderungen im Plan speichern</button><span class="hint">Positionen werden in der jeweiligen JSON-Datei gespeichert.</span></div>' : '') +
       (!this._cardMode ? '<p class="hint">Entitäten, Leuchten und 3D-Gegenstände bearbeitest du direkt auf der Karte über das Stift-Symbol.</p>' : '') +
       '<details class="pl plans-box" open><summary>Pläne</summary><div class="plans"></div></details>' +
@@ -1865,6 +1876,15 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
       this._renderBar();
     });
     this._wirePlan();
+    if (this._cardMode) {
+      this._zoom = 1;
+      this._q('.zoom-controls').addEventListener('click', ev => {
+        const b = ev.target.closest('[data-zoom]');
+        if (!b) return;
+        this._zoom = b.dataset.zoom === 'fit' ? 1 : Math.max(1, Math.min(4, (this._zoom || 1) + (b.dataset.zoom === 'in' ? 0.5 : -0.5)));
+        this._applyPlanZoom();
+      });
+    }
     if (this._cardMode) this._q('[data-save]').addEventListener('click', () => this._savePlanEdits());
     this._loadPickers();
     this._load();
@@ -1941,9 +1961,18 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
     this._q('.plan').classList.toggle('placing', !!this._placing);
     this._q('.hint').textContent = this._placing ? 'In den Plan tippen, um zu platzieren' : 'Symbole ziehen zum Verschieben, antippen zum Bearbeiten';
   }
+  _applyPlanZoom() {
+    if (!this._cardMode) return;
+    const zoom = this._zoom || 1;
+    const plan = this._q('.plan');
+    plan.style.width = (zoom * 100) + '%';
+    const display = this._q('[data-zoom-value]');
+    if (display) display.textContent = Math.round(zoom * 100) + ' %';
+  }
   _drawPlan() {
     const vb = this._vb, svg = this._q('.plan svg'), plan = this._q('.plan');
     plan.style.aspectRatio = vb.w + ' / ' + vb.h;
+    this._applyPlanZoom();
     svg.setAttribute('viewBox', [vb.x, vb.y, vb.w, vb.h].join(' '));
     const path = (o, h) => [o].concat(h || []).map(p => 'M' + p.map(q => q[0].toFixed(3) + ' ' + q[1].toFixed(3)).join('L') + 'Z').join('');
     let s = '';
@@ -1952,6 +1981,10 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
       (p.foot || []).forEach(f => { s += '<path d="' + path(f.o, f.h) + '" fill="#cfd3d6" fill-rule="evenodd"/>'; });
       (p.floors || []).forEach(f => { s += '<path d="' + path(f.poly, f.holes) + '" fill="' + (FILL[f.mat] || '#eee') + '" fill-rule="evenodd"/>'; });
       (p.items || []).forEach(it => {
+        // Format 2: {block, pos, rot, prims} sind Objekte und dürfen niemals
+        // wie alte Format-1-Bausteinarrays destrukturiert werden.
+        // Die anklickbaren Objektmarker zeichnet _renderMarks separat.
+        if (!Array.isArray(it)) return;
         const [t, g, x0, y0, x1, y1] = it;
         if (g !== 'furn') return;
         if (RECT_ITEMS.includes(t) || (t === 'pb' && (x1 - x0) * (y1 - y0) > 0.12 && it[7] > 0.3)) {
