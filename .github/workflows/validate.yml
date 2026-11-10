@@ -28,3 +28,4 @@ jobs:
       - run: pip install pytest-homeassistant-custom-component
       - run: pytest -q
       - run: node tests/test_editor_render.cjs
+      - run: node tests/test_editor_markers.cjs

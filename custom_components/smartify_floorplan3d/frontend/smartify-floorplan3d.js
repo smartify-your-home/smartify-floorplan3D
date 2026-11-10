@@ -5,7 +5,7 @@
  * Elemente wie bei picture-elements (state-icon, state-label, custom:...) mit pos: [x, y] bzw. [x, y, h] in Plan-Metern;
  * am einfachsten im Karten-Editor per Drag & Drop in der Draufsicht platzieren. */
 (() => {
-const VERSION = '1.4.1';
+const VERSION = '1.4.2';
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js';
 const CTRL_URL = 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js';
 
@@ -1780,7 +1780,16 @@ button.b.warn { color: var(--error-color, #db4437); border-color: currentColor; 
   background: var(--card-background-color, #fff); color: var(--primary-color); border: 2px solid var(--primary-color);
   box-shadow: 0 1px 4px rgba(0, 0, 0, .3); --mdc-icon-size: 18px; touch-action: none; }
 .mk.light { color: #b27b00; border-color: #e0a800; }
-.ed.card-edit .mk:not(.light) { background: color-mix(in srgb, var(--primary-color) 10%, var(--card-background-color,#fff)); }
+/* Wenige, kleine Marker statt 95 grosser Kreise ueber dem Grundriss. */
+.ed.card-edit .mk { width:18px;height:18px;margin:-9px 0 0 -9px;border-width:1px; --mdc-icon-size:12px;box-shadow:0 1px 2px #0003; }
+.ed.card-edit .mk.object { width:12px;height:12px;margin:-6px 0 0 -6px;border:1px solid #64748b;background:#94a3b8cc;color:#fff;--mdc-icon-size:9px; }
+.ed.card-edit .mk.object.sel { width:20px;height:20px;margin:-10px 0 0 -10px;border:2px solid var(--primary-color);--mdc-icon-size:13px;z-index:3; }
+.ed.card-edit .mk.light { background:#ffefd0;color:#a86b00;border-color:#bc8b2d; }
+.ed.card-edit .mk.element { background:color-mix(in srgb,var(--primary-color) 12%,var(--card-background-color,#fff)); }
+.ed.card-edit .mk[hidden] { display:none; }
+.ed.card-edit .plan { min-width:100%; }
+.ed.card-edit .bar .b[data-filter] { border-radius:12px; }
+.ed.card-edit .bar .b[data-filter][aria-pressed="false"] { opacity:.62; }
 .ed.card-edit .mk .lbl { display:none; }
 .ed.card-edit .mk:hover .lbl, .ed.card-edit .mk.sel .lbl { display:block; z-index:2; }
 .mk.light.free { opacity: .55; border-style: dashed; }
@@ -1800,7 +1809,7 @@ button.b.warn { color: var(--error-color, #db4437); border-color: currentColor; 
 @media (max-width: 700px) { .panel { grid-template-columns: 1fr; } }
 .ed.card-edit { width: 100%; max-width: 1500px; min-width:0; margin: auto; padding: 4px; box-sizing:border-box; }
 .ed:not(.card-edit) > .tabs, .ed:not(.card-edit) > .bar, .ed:not(.card-edit) > .plan-scroll, .ed:not(.card-edit) > .sel { display:none; }
-.plan-scroll { overflow-x:auto; overflow-y:hidden; max-width:100%; border:1px solid var(--divider-color,#8885); border-radius:10px; }
+.plan-scroll { overflow:auto; width:100%; max-width:100%; max-height:min(70vh, 760px); border:1px solid var(--divider-color,#8885); border-radius:10px; touch-action:none; overscroll-behavior:contain; box-sizing:border-box; }
 .ed.card-edit .plan { max-height: none; overflow: hidden; flex-shrink:0; }
 .ed.card-edit .sel { width:100%; min-width:0; overflow:visible; }
 .ed.card-edit .sel:empty { display:none; }
@@ -1861,6 +1870,7 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
     const root = this.attachShadow({ mode: 'open' });
     root.innerHTML = '<style>' + ED_CSS + '</style><div class="ed' + (this._cardMode ? ' card-edit' : '') + '"><div class="tabs"></div><div class="bar">' +
       '<button class="b" data-a="add">+ Element</button><button class="b" data-a="addlight">+ Leuchte</button>' +
+      (this._cardMode ? '<button type="button" class="b" data-filter="object" aria-pressed="false">Gegenstände anzeigen</button>' : '') +
       '<span class="hint"></span></div>' +
       (this._cardMode ? '<div class="zoom-controls" aria-label="Grundriss-Zoom"><button type="button" data-zoom="out" aria-label="Verkleinern">−</button><span data-zoom-value>100 %</span><button type="button" data-zoom="in" aria-label="Vergrößern">+</button><button type="button" data-zoom="fit">Einpassen</button></div>' : '') +
       '<div class="err" hidden></div><div class="plan-scroll"><div class="plan"><svg></svg></div></div><div class="sel"></div>' +
@@ -1872,17 +1882,25 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
     this._q('.bar').addEventListener('click', ev => {
       const b = ev.target.closest('button');
       if (!b) return;
+      if (b.dataset.filter === 'object') { this._showObjects = !this._showObjects; b.setAttribute('aria-pressed', String(!!this._showObjects)); this._renderMarks(); return; }
+      if (!b.dataset.a) return;
       this._placing = this._placing === b.dataset.a ? null : b.dataset.a;
       this._renderBar();
     });
     this._wirePlan();
     if (this._cardMode) {
       this._zoom = 1;
+      this._showObjects = false;
       this._q('.zoom-controls').addEventListener('click', ev => {
         const b = ev.target.closest('[data-zoom]');
         if (!b) return;
-        this._zoom = b.dataset.zoom === 'fit' ? 1 : Math.max(1, Math.min(4, (this._zoom || 1) + (b.dataset.zoom === 'in' ? 0.5 : -0.5)));
+        const scroll = this._q('.plan-scroll');
+        const midX = scroll.scrollLeft + scroll.clientWidth / 2, midY = scroll.scrollTop + scroll.clientHeight / 2;
+        const previous = this._zoom || 1;
+        this._zoom = b.dataset.zoom === 'fit' ? 1 : Math.max(1, Math.min(6, previous + (b.dataset.zoom === 'in' ? 0.5 : -0.5)));
         this._applyPlanZoom();
+        scroll.scrollLeft = midX * this._zoom / previous - scroll.clientWidth / 2;
+        scroll.scrollTop = midY * this._zoom / previous - scroll.clientHeight / 2;
       });
     }
     if (this._cardMode) this._q('[data-save]').addEventListener('click', () => this._savePlanEdits());
@@ -2033,7 +2051,9 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
       const home = (this._lights || {})[k];
       if (!home && (!Array.isArray(o.pos) || !mine(o.floor))) return;   // Leuchte eines anderen Geschosses
       if (home && o.floor !== undefined && !mine(o.floor)) return;
-      const p = Array.isArray(o.pos) ? o.pos : home;
+      // Plan-Lichter sind {pos:[x,y,h], type:...}, nicht direkte Koordinatenarrays.
+      const p = Array.isArray(o.pos) ? o.pos : (Array.isArray(home) ? home : (home && Array.isArray(home.pos) ? home.pos : null));
+      if (!p || !Number.isFinite(num(p[0], NaN)) || !Number.isFinite(num(p[1], NaN))) return;
       out.push({ id: 'l' + k, kind: 'l', k: k, x: num(p[0], 0), y: num(p[1], 0), o: o, free: !o.entity });
     });
     if (this._cardMode) (this._parts || []).forEach((part, pi) => (part.items || []).forEach((it, ii) => {
@@ -2061,7 +2081,8 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
     this._marks().forEach(m => {
       if (m.x < vb.x || m.y < vb.y || m.x > vb.x + vb.w || m.y > vb.y + vb.h) return;
       const el = document.createElement('div');
-      el.className = 'mk' + (m.kind === 'l' ? ' light' : '') + (m.free ? ' free' : '') + (this._sel === m.id ? ' sel' : '');
+      el.className = 'mk ' + (m.kind === 'o' ? 'object' : m.kind === 'l' ? 'light' : 'element') + (m.free ? ' free' : '') + (this._sel === m.id ? ' sel' : '');
+      if (m.kind === 'o' && this._cardMode && !this._showObjects && this._sel !== m.id) el.hidden = true;
       el.dataset.id = m.id;
       el.style.left = ((m.x - vb.x) / vb.w * 100) + '%';
       el.style.top = ((m.y - vb.y) / vb.h * 100) + '%';
@@ -2080,41 +2101,84 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
   // ----- Ziehen, Antippen, Platzieren
   _wirePlan() {
     const plan = this._q('.plan');
-    const at = ev => {
+    const scroll = this._q('.plan-scroll');
+    const point = ev => {
       const r = plan.getBoundingClientRect(), vb = this._vb;
       return [vb.x + (ev.clientX - r.left) / r.width * vb.w, vb.y + (ev.clientY - r.top) / r.height * vb.h];
     };
-    let drag = null;
+    const pointers = new Map();
+    let drag = null, pan = null, pinch = null;
+    const metric = () => {
+      const values = [...pointers.values()];
+      if (values.length < 2) return null;
+      const a = values[0], b = values[1];
+      return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, distance: Math.hypot(a.x - b.x, a.y - b.y) };
+    };
+    const beginPinch = () => {
+      const m = metric(); if (!m) return;
+      drag = null; pan = null;
+      const r = scroll.getBoundingClientRect();
+      pinch = { ...m, zoom: this._zoom || 1, xContent: scroll.scrollLeft + m.x - r.left, yContent: scroll.scrollTop + m.y - r.top };
+    };
     plan.addEventListener('pointerdown', ev => {
       if (!this._vb) return;
-      const mk = ev.target.closest('.mk');
+      pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      plan.setPointerCapture(ev.pointerId);
+      if (pointers.size === 2 && this._cardMode) { beginPinch(); return; }
+      const mk = ev.target.closest('.mk:not([hidden])');
       if (this._placing && !mk) {
-        const p = at(ev).map(r2);
+        const p = point(ev).map(r2);
         if (this._placing === 'add') this._addElement(p); else this._addLight(p);
         this._placing = null; this._renderBar();
         return;
       }
-      if (!mk) { this._sel = null; this._renderMarks(); this._renderSel(); return; }
-      ev.preventDefault();
-      mk.setPointerCapture(ev.pointerId);
-      drag = { mk: mk, id: mk.dataset.id, x0: ev.clientX, y0: ev.clientY, moved: false, p: null };
+      if (mk) {
+        drag = { id: mk.dataset.id, mk, pointer: ev.pointerId, x0: ev.clientX, y0: ev.clientY, moved: false, p: null };
+      } else {
+        pan = { pointer: ev.pointerId, x: ev.clientX, y: ev.clientY, left: scroll.scrollLeft, top: scroll.scrollTop, moved: false };
+      }
     });
     plan.addEventListener('pointermove', ev => {
-      if (!drag) return;
-      if (!drag.moved && Math.hypot(ev.clientX - drag.x0, ev.clientY - drag.y0) < 4) return;
+      if (!pointers.has(ev.pointerId)) return;
+      pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      if (pinch && pointers.size >= 2) {
+        const m = metric(), old = this._zoom || 1;
+        this._zoom = Math.min(6, Math.max(1, pinch.zoom * (m.distance / Math.max(1, pinch.distance))));
+        this._applyPlanZoom();
+        const r = scroll.getBoundingClientRect();
+        scroll.scrollLeft = pinch.xContent * this._zoom / pinch.zoom - (m.x - r.left);
+        scroll.scrollTop = pinch.yContent * this._zoom / pinch.zoom - (m.y - r.top);
+        return;
+      }
+      if (pan && pan.pointer === ev.pointerId) {
+        if (Math.hypot(ev.clientX - pan.x, ev.clientY - pan.y) > 4) pan.moved = true;
+        scroll.scrollLeft = pan.left + pan.x - ev.clientX;
+        scroll.scrollTop = pan.top + pan.y - ev.clientY;
+        return;
+      }
+      if (!drag || drag.pointer !== ev.pointerId) return;
+      if (!drag.moved && Math.hypot(ev.clientX - drag.x0, ev.clientY - drag.y0) < 5) return;
       drag.moved = true;
-      const p = at(ev), vb = this._vb;
-      p[0] = Math.min(vb.x + vb.w, Math.max(vb.x, p[0])); p[1] = Math.min(vb.y + vb.h, Math.max(vb.y, p[1]));
+      const p = point(ev), vb = this._vb;
+      p[0] = Math.min(vb.x + vb.w, Math.max(vb.x, p[0]));
+      p[1] = Math.min(vb.y + vb.h, Math.max(vb.y, p[1]));
       drag.p = p.map(r2);
       drag.mk.style.left = ((drag.p[0] - vb.x) / vb.w * 100) + '%';
       drag.mk.style.top = ((drag.p[1] - vb.y) / vb.h * 100) + '%';
     });
-    const end = () => {
-      if (!drag) return;
-      const d = drag; drag = null;
-      this._sel = d.id;
-      if (d.moved && d.p) this._move(d.id, d.p);
-      this._renderMarks(); this._renderSel();
+    const end = ev => {
+      if (!pointers.has(ev.pointerId)) return;
+      pointers.delete(ev.pointerId);
+      if (pinch) { if (pointers.size < 2) { pinch = null; drag = null; pan = null; } return; }
+      if (drag && drag.pointer === ev.pointerId) {
+        const d = drag; drag = null;
+        this._sel = d.id;
+        if (d.moved && d.p) this._move(d.id, d.p);
+        this._renderMarks(); this._renderSel();
+      } else if (pan && pan.pointer === ev.pointerId) {
+        const moved = pan.moved; pan = null;
+        if (!moved) { this._sel = null; this._renderMarks(); this._renderSel(); }
+      }
     };
     plan.addEventListener('pointerup', end);
     plan.addEventListener('pointercancel', end);

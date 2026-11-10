@@ -112,3 +112,11 @@ pytest -q
 ## Bewegliche Bauteile (ab 1.3.0)
 
 Raffstores/Jalousien und Sektionaltore lassen sich optional in `openings` definieren und über Home-Assistant-`cover`-Entitäten darstellen. Details, JSON-Beispiele und Grenzen: [Plandateiformat](docs/FLOORPLAN_FORMAT.md). Regeln für Änderungen: [AGENTS.md](AGENTS.md).
+
+
+### 2D-Editor auf Mobilgeräten (ab 1.4.2)
+
+- Leuchtenpositionen aus dem Planformat `{"pos":[x,y]}` werden korrekt angezeigt.
+- Leuchten und Entitäten sind kleine, verschiebbare Marker; Gegenstände werden zunächst ausgeblendet und können über **Gegenstände anzeigen** eingeblendet werden.
+- Im Grundriss mit einem Finger über freie Fläche verschieben, mit zwei Fingern zoomen und gleichzeitig verschieben; zum Platzieren/Bewegen einzelner Marker direkt auf diesen ziehen.
+- Die Zoomtasten und **Einpassen** funktionieren weiterhin. Objekte lassen sich nach Anzeige auswählen und ihre Positionen im jeweiligen Plan speichern.
