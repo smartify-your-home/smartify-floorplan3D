@@ -5,7 +5,7 @@
  * Elemente wie bei picture-elements (state-icon, state-label, custom:...) mit pos: [x, y] bzw. [x, y, h] in Plan-Metern;
  * am einfachsten im Karten-Editor per Drag & Drop in der Draufsicht platzieren. */
 (() => {
-const VERSION = '1.4.5';
+const VERSION = '1.4.6';
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js';
 const CTRL_URL = 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js';
 

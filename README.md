@@ -135,3 +135,7 @@ Bei ausgewählten Elementen, Leuchten und Gegenständen öffnet die 2D-Draufsich
 ### Fix 1.4.5: Nativer Vordergrund-Dialog
 
 Die Entitäten- und Gegenstandsauswahl verwendet jetzt das native HTML-`dialog`-Element mit `showModal()`. Dadurch liegt sie in der Browser-Top-Layer statt in einem durch Scrollcontainer und CSS-Stapelkontexte beeinflussbaren `div`. Einfache rechteckige Dialogfläche, deckender Hintergrund, gerundete Ecken und auf schmalen Displays ein Bottom-Sheet. Die normale Karten- und Planansicht bleibt unverändert.
+
+## Versionierung
+
+Aktuelle Version: **v1.4.6**. Versions-Commits heißen künftig beispielsweise `v1.4.6 – Versionsverwaltung vereinheitlicht`; die technische Git-Commit-ID wird von GitHub automatisch vergeben. Änderungen sind in [CHANGELOG.md](CHANGELOG.md) dokumentiert. Die Integrationsversion steht synchron in `manifest.json`, `const.py` und der JavaScript-Karte.
