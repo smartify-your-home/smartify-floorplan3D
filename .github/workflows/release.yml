@@ -1,0 +1,59 @@
+name: Publish versioned HACS release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: floorplan-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check release version and matching commit message
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(python3 -c 'import json; print(json.load(open("custom_components/smartify_floorplan3d/manifest.json"))["version"])')"
+          PY_VERSION="$(python3 -c 'import re; print(re.search(r"VERSION = \"([^\"]+)\"", open("custom_components/smartify_floorplan3d/const.py").read()).group(1))')"
+          JS_VERSION="$(python3 -c 'import re; print(re.search(r"const VERSION = '\''([^'\'']+)'\'';", open("custom_components/smartify_floorplan3d/frontend/smartify-floorplan3d.js").read()).group(1))')"
+          test "$VERSION" = "$PY_VERSION"
+          test "$VERSION" = "$JS_VERSION"
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          FIRST_LINE="$(git log -1 --format=%s)"
+          if [[ "$FIRST_LINE" != "v$VERSION – "* ]]; then
+            echo "Not a version commit: $FIRST_LINE"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Check whether release exists
+        if: steps.version.outputs.publish == 'true'
+        id: exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Publish HACS release
+        if: steps.version.outputs.publish == 'true' && steps.exists.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            --target "$GITHUB_SHA" \
+            --title "Smartify Floorplan 3D ${{ steps.version.outputs.tag }}" \
+            --generate-notes \
+            --latest
