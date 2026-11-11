@@ -36,15 +36,15 @@ jobs:
               js_source = f.read()
           py = re.search(r'(?m)^VERSION = "([^"]+)"', python_source)
           js = re.search(r"(?m)^const VERSION = '([^']+)'", js_source)
-          if not re.fullmatch(r"[0-9]+\\.[0-9]+\\.[0-9]+", version):
+          if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
               raise SystemExit("Invalid manifest version: " + version)
           if not py or not js or version != py.group(1) or version != js.group(1):
               raise SystemExit("Manifest, Python and JavaScript versions differ")
           subject = subprocess.check_output(["git", "log", "-1", "--format=%s"], text=True).strip()
           publish = subject.startswith("v" + version + " – ")
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
-              f.write("publish=" + str(publish).lower() + "\\n")
-              f.write("tag=v" + version + "\\n")
+              f.write("publish=" + str(publish).lower() + "\n")
+              f.write("tag=v" + version + "\n")
           print("Version:", version, "release commit:", publish)
           PY
       - name: Check whether release exists
