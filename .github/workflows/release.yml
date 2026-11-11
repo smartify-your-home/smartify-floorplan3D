@@ -22,20 +22,31 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="$(python3 -c 'import json; print(json.load(open("custom_components/smartify_floorplan3d/manifest.json"))["version"])')"
-          PY_VERSION="$(python3 -c 'import re; print(re.search(r"VERSION = \"([^\"]+)\"", open("custom_components/smartify_floorplan3d/const.py").read()).group(1))')"
-          JS_VERSION="$(python3 -c 'import re; print(re.search(r"const VERSION = '\''([^'\'']+)'\'';", open("custom_components/smartify_floorplan3d/frontend/smartify-floorplan3d.js").read()).group(1))')"
-          test "$VERSION" = "$PY_VERSION"
-          test "$VERSION" = "$JS_VERSION"
-          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          FIRST_LINE="$(git log -1 --format=%s)"
-          if [[ "$FIRST_LINE" != "v$VERSION – "* ]]; then
-            echo "Not a version commit: $FIRST_LINE"
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "publish=true" >> "$GITHUB_OUTPUT"
-          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+
+          with open("custom_components/smartify_floorplan3d/manifest.json", encoding="utf-8") as f:
+              version = json.load(f)["version"]
+          with open("custom_components/smartify_floorplan3d/const.py", encoding="utf-8") as f:
+              python_source = f.read()
+          with open("custom_components/smartify_floorplan3d/frontend/smartify-floorplan3d.js", encoding="utf-8") as f:
+              js_source = f.read()
+          py = re.search(r'(?m)^VERSION = "([^"]+)"', python_source)
+          js = re.search(r"(?m)^const VERSION = '([^']+)'", js_source)
+          if not re.fullmatch(r"[0-9]+\\.[0-9]+\\.[0-9]+", version):
+              raise SystemExit("Invalid manifest version: " + version)
+          if not py or not js or version != py.group(1) or version != js.group(1):
+              raise SystemExit("Manifest, Python and JavaScript versions differ")
+          subject = subprocess.check_output(["git", "log", "-1", "--format=%s"], text=True).strip()
+          publish = subject.startswith("v" + version + " – ")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+              f.write("publish=" + str(publish).lower() + "\\n")
+              f.write("tag=v" + version + "\\n")
+          print("Version:", version, "release commit:", publish)
+          PY
       - name: Check whether release exists
         if: steps.version.outputs.publish == 'true'
         id: exists
