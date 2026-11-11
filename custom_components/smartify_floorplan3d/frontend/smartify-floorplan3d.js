@@ -5,7 +5,7 @@
  * Elemente wie bei picture-elements (state-icon, state-label, custom:...) mit pos: [x, y] bzw. [x, y, h] in Plan-Metern;
  * am einfachsten im Karten-Editor per Drag & Drop in der Draufsicht platzieren. */
 (() => {
-const VERSION = '1.4.7';
+const VERSION = '1.4.8';
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js';
 const CTRL_URL = 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js';
 
@@ -1811,9 +1811,9 @@ button.b.warn { color: var(--error-color, #db4437); border-color: currentColor; 
 .ed:not(.card-edit) > .tabs, .ed:not(.card-edit) > .bar, .ed:not(.card-edit) > .plan-scroll, .ed:not(.card-edit) > .sel { display:none; }
 .plan-scroll { overflow:auto; width:100%; max-width:100%; max-height:min(70vh, 760px); border:1px solid var(--divider-color,#8885); border-radius:10px; touch-action:none; overscroll-behavior:contain; box-sizing:border-box; }
 .ed.card-edit .plan { max-height: none; overflow: hidden; flex-shrink:0; }
-.ed.card-edit .sel { width:100%; min-width:0; overflow:visible; }
-.ed.card-edit .sel:empty { display:none; }
-.ed.card-edit .sel .panel { width:100%; box-sizing:border-box; background:var(--card-background-color,#fff); }
+.ed.card-edit dialog.fp-sel { min-width:0; box-sizing:border-box; }
+.ed.card-edit dialog.fp-sel:not([open]) { display:none !important; }
+.ed.card-edit dialog.fp-sel .panel { width:100%; box-sizing:border-box; background:#fff; }
 .ed.card-edit .bar { align-items:center; }
 .zoom-controls { display:flex;justify-content:flex-end;align-items:center;gap:8px; }
 .zoom-controls button { font:inherit;cursor:pointer;border:1px solid var(--divider-color,#8885);color:var(--primary-text-color);background:var(--card-background-color,#fff);border-radius:8px;padding:5px 12px;min-height:36px; }
@@ -1823,7 +1823,7 @@ button.b.warn { color: var(--error-color, #db4437); border-color: currentColor; 
 .ed.card-edit .bar.savebar { position:sticky;top:0;z-index:10;background:var(--primary-background-color,#fafafa);padding:8px 0; }
 
 /* Fullscreen editor controls: solid, theme-aware, readable on phone and tablet. */
-.ed.card-edit, .ed.card-edit .sel, .ed.card-edit .panel { max-width:100%;min-width:0;box-sizing:border-box; }
+.ed.card-edit, .ed.card-edit .panel { max-width:100%;min-width:0;box-sizing:border-box; }
 .ed.card-edit .panel { display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:12px;padding:12px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#222); }
 .ed.card-edit .fp-field { display:flex;flex-direction:column;gap:5px;min-width:0;max-width:100%;color:var(--primary-text-color,#222);font-size:13px; }
 .ed.card-edit .fp-field-title { font-weight:600;opacity:1; }
@@ -1857,11 +1857,11 @@ details .panel { border: 0; padding: 8px 0 0; }
 .plans .it .m { font-size: 12px; color: var(--secondary-text-color); flex: 1; min-width: 120px; }
 .plans .ok { color: var(--success-color, #43a047); font-size: 13px; }
 .plans .bad { color: var(--error-color, #db4437); font-size: 13px; }
-/* A single native dialog rule set. Do not style dialog.sel via :not(:empty):
+/* A single native dialog rule set. Do not style dialog.fp-sel via :not(:empty):
    it would incorrectly make the dialog viewport-sized and render a huge oval. */
-.ed.card-edit dialog.sel { box-sizing: border-box; }
-.ed.card-edit dialog.sel:not([open]) { display: none !important; }
-.ed.card-edit dialog.sel[open] {
+.ed dialog.fp-sel { box-sizing: border-box; }
+.ed dialog.fp-sel:not([open]) { display: none !important; }
+.ed dialog.fp-sel[open] {
   position: fixed !important;
   inset: 0 !important;
   display: block !important;
@@ -1886,11 +1886,11 @@ details .panel { border: 0; padding: 8px 0 0; }
   overflow: auto !important;
   overscroll-behavior: contain;
 }
-.ed.card-edit dialog.sel::backdrop {
+.ed dialog.fp-sel::backdrop {
   background: rgba(0, 0, 0, 0.52) !important;
   backdrop-filter: none !important;
 }
-.ed.card-edit dialog.sel[open] > .panel {
+.ed dialog.fp-sel[open] > .panel {
   display: grid !important;
   width: 100% !important;
   min-width: 0 !important;
@@ -1907,23 +1907,23 @@ details .panel { border: 0; padding: 8px 0 0; }
   background: #fff !important;
   color: #202124 !important;
 }
-.ed.card-edit dialog.sel .fp-field,
-.ed.card-edit dialog.sel .fp-field-title,
-.ed.card-edit dialog.sel h4 { color: #202124 !important; }
-.ed.card-edit dialog.sel .fp-field input,
-.ed.card-edit dialog.sel .fp-field select,
-.ed.card-edit dialog.sel .light-picker input,
-.ed.card-edit dialog.sel .light-results {
+.ed dialog.fp-sel .fp-field,
+.ed dialog.fp-sel .fp-field-title,
+.ed dialog.fp-sel h4 { color: #202124 !important; }
+.ed dialog.fp-sel .fp-field input,
+.ed dialog.fp-sel .fp-field select,
+.ed dialog.fp-sel .light-picker input,
+.ed dialog.fp-sel .light-results {
   background: #fff !important;
   color: #202124 !important;
   opacity: 1 !important;
   border-color: #9da3ab !important;
 }
-.ed.card-edit dialog.sel .light-option { color: #202124 !important; }
-.ed.card-edit dialog.sel .light-option small { color: #50575e !important; }
-.ed.card-edit dialog.sel .light-option:hover,
-.ed.card-edit dialog.sel .light-option:focus-visible { background: #e7f2fc !important; }
-.ed.card-edit dialog.sel .fp-dialog-close {
+.ed dialog.fp-sel .light-option { color: #202124 !important; }
+.ed dialog.fp-sel .light-option small { color: #50575e !important; }
+.ed dialog.fp-sel .light-option:hover,
+.ed dialog.fp-sel .light-option:focus-visible { background: #e7f2fc !important; }
+.ed dialog.fp-sel .fp-dialog-close {
   position: sticky;
   top: 0;
   justify-self: end;
@@ -1937,7 +1937,7 @@ details .panel { border: 0; padding: 8px 0 0; }
   cursor: pointer;
 }
 @media (max-width: 700px) {
-  .ed.card-edit dialog.sel[open] {
+  .ed dialog.fp-sel[open] {
     top: auto !important;
     left: 8px !important;
     right: 8px !important;
@@ -1947,7 +1947,7 @@ details .panel { border: 0; padding: 8px 0 0; }
     width: calc(100vw - 16px) !important;
     max-height: min(86dvh, 800px) !important;
   }
-  .ed.card-edit dialog.sel[open] > .panel {
+  .ed dialog.fp-sel[open] > .panel {
     grid-template-columns: minmax(0, 1fr) !important;
     padding: 12px !important;
   }
@@ -1989,27 +1989,28 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
       (this._cardMode ? '<button type="button" class="b" data-filter="object" aria-pressed="false">Gegenstände anzeigen</button>' : '') +
       '<span class="hint"></span></div>' +
       (this._cardMode ? '<div class="zoom-controls" aria-label="Grundriss-Zoom"><button type="button" data-zoom="out" aria-label="Verkleinern">−</button><span data-zoom-value>100 %</span><button type="button" data-zoom="in" aria-label="Vergrößern">+</button><button type="button" data-zoom="fit">Einpassen</button></div>' : '') +
-      '<div class="err" hidden></div><div class="plan-scroll"><div class="plan"><svg></svg></div></div><dialog class="sel" aria-label="Entität oder Gegenstand bearbeiten"></dialog>' +
+      '<div class="err" hidden></div><div class="plan-scroll"><div class="plan"><svg></svg></div></div><dialog class="fp-sel" aria-label="Entität oder Gegenstand bearbeiten"></dialog>' +
       (this._cardMode ? '<div class="bar savebar"><button class="b" data-save="yes">Änderungen im Plan speichern</button><span class="hint">Positionen werden in der jeweiligen JSON-Datei gespeichert.</span></div>' : '') +
       (!this._cardMode ? '<p class="hint">Entitäten, Leuchten und 3D-Gegenstände bearbeitest du direkt auf der Karte über das Stift-Symbol.</p>' : '') +
       '<details class="pl plans-box" open><summary>Pläne</summary><div class="plans"></div></details>' +
       '<details class="more-box"><summary>Weitere Einstellungen</summary><div class="panel more"></div></details></div>';
     this._q = s => root.querySelector(s);
-    if (this._cardMode) {
-      this._q('.sel').addEventListener('close', () => {
-        if (this._sel !== null) { this._sel = null; this._renderMarks(); this._renderSel(); }
-      });
-      this._q('.sel').addEventListener('click', ev => {
-        if (ev.target === this._q('.sel')) {
-          this._sel = null; this._renderMarks(); this._renderSel();
-        }
-      });
-      this._q('.sel').addEventListener('keydown', ev => {
-        if (ev.key === 'Escape') {
-          ev.stopPropagation(); this._sel = null; this._renderMarks(); this._renderSel();
-        }
-      });
-    }
+    // The selection marker also uses .sel; always reference the actual dialog.
+    const dlg = this._dlg = root.querySelector('dialog.fp-sel');
+    const deselect = () => {
+      if (this._sel !== null) {
+        this._sel = null; this._renderMarks(); this._renderSel();
+      }
+    };
+    dlg.addEventListener('close', deselect);
+    dlg.addEventListener('cancel', ev => { ev.preventDefault(); deselect(); });
+    dlg.addEventListener('click', ev => {
+      // Ignore synthetic click immediately following a touch on a marker.
+      if (ev.target !== dlg || performance.now() - (this._dlgOpened || 0) < 450) return;
+      const bounds = dlg.getBoundingClientRect();
+      if (ev.clientX < bounds.left || ev.clientX > bounds.right ||
+          ev.clientY < bounds.top || ev.clientY > bounds.bottom) deselect();
+    });
     this._q('.bar').addEventListener('click', ev => {
       const b = ev.target.closest('button');
       if (!b) return;
@@ -2505,10 +2506,11 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
     return b;
   }
   _renderSel() {
-    const box = this._q('.sel');
+    const box = this._dlg;
+    if (!box) return;
     box.textContent = '';
     const m = this._sel && this._vb ? this._marks().find(x => x.id === this._sel) : null;
-    if (!m) { if (this._cardMode && box.open) box.close(); return; }
+    if (!m) { if (box.open) box.close(); return; }
     const panel = document.createElement('div');
     panel.className = 'panel';
     if (this._cardMode) {
@@ -2605,7 +2607,10 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
       panel.appendChild(row);
     }
     box.appendChild(panel);
-    if (this._cardMode && !box.open) box.showModal();
+    if (this._cardMode && !box.open) {
+      this._dlgOpened = performance.now();
+      box.showModal();
+    }
   }
   // ----- Pläne: Liste, Import, als Ansicht hinzufügen, löschen
   async _renderPlans(note) {

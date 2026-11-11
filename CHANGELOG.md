@@ -5,6 +5,12 @@ Jeder Versions-Commit erhält einen lesbaren Titel nach dem Schema
 `vX.Y.Z – Kurzbeschreibung`. Die automatisch erzeugte Git-Commit-ID
 (SHA) ist davon unabhängig und kann technisch nicht ersetzt werden.
 
+## v1.4.8 – Eigenschaftsdialog und Marker eindeutig trennen
+- Fehlerursache: `.sel` wurde zugleich für Auswahlmarker und Dialog verwendet, wodurch die Suche den falschen Knoten traf.
+- Dialog auf `fp-sel` und feste Dialogreferenz umgestellt; Touch-Folgeklick-Schutz ergänzt.
+- CSS und Regressionstests gegen die Selektorverwechslung angepasst.
+- Keine Änderung des Planformats.
+
 ## v1.4.7 – Dialog-CSS bereinigt
 - Alte Vollbild-CSS-Regeln aus dem 2D-Entitätendialog entfernt, die den modalen Dialog fälschlich bildschirmgroß und oval dargestellt haben.
 - Nur noch eine zusammenhängende CSS-Definition für den nativen Dialog, inklusive deckendem Hintergrund und mobiler Ansicht.

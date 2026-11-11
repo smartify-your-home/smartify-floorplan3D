@@ -1,7 +1,7 @@
 """Konstanten für smartify Floorplan 3D."""
 
 DOMAIN = "smartify_floorplan3d"
-VERSION = "1.4.7"
+VERSION = "1.4.8"
 
 # Kartendatei, die die Integration ausliefert und automatisch im Frontend lädt
 URL_BASE = "/smartify_floorplan3d_static"
