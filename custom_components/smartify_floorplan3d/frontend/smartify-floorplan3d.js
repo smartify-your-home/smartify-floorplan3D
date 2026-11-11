@@ -5,7 +5,7 @@
  * Elemente wie bei picture-elements (state-icon, state-label, custom:...) mit pos: [x, y] bzw. [x, y, h] in Plan-Metern;
  * am einfachsten im Karten-Editor per Drag & Drop in der Draufsicht platzieren. */
 (() => {
-const VERSION = '1.4.3';
+const VERSION = '1.4.4';
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js';
 const CTRL_URL = 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js';
 
@@ -1822,6 +1822,87 @@ button.b.warn { color: var(--error-color, #db4437); border-color: currentColor; 
 .ed.card-edit .plans-box, .ed.card-edit .more-box { display: none; }
 .ed.card-edit .bar.savebar { position:sticky;top:0;z-index:10;background:var(--primary-background-color,#fafafa);padding:8px 0; }
 
+/* v1.4.4: Keep the object properties above the floorplan in a fully opaque modal.
+   The fullscreen plan editor is already appended to document.body.  Its own
+   selection UI must never depend on the SVG viewport or plan scroll area. */
+.ed.card-edit .sel:not(:empty) {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483645 !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+  margin: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  box-sizing: border-box !important;
+  background: rgba(0, 0, 0, 0.58) !important;
+  isolation: isolate;
+  overflow: hidden !important;
+  pointer-events: auto !important;
+}
+.ed.card-edit .sel:not(:empty) > .panel {
+  position: relative !important;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  width: min(100%, 700px) !important;
+  min-width: 0;
+  max-width: min(100%, 700px) !important;
+  max-height: min(86dvh, 760px) !important;
+  overflow: auto !important;
+  overscroll-behavior: contain;
+  padding: 18px;
+  border: 1px solid #a0a0a0;
+  border-radius: 14px;
+  /* Solid backing even with transparent custom card themes. */
+  background: #ffffff !important;
+  color: #202124 !important;
+  box-shadow: 0 16px 60px rgba(0,0,0,.5);
+  opacity: 1 !important;
+  backdrop-filter: none !important;
+}
+.ed.card-edit .sel .panel .fp-field,
+.ed.card-edit .sel .panel .fp-field-title,
+.ed.card-edit .sel .panel h4 { color: #202124 !important; }
+.ed.card-edit .sel .panel input,
+.ed.card-edit .sel .panel select,
+.ed.card-edit .sel .panel .light-results {
+  background: #ffffff !important;
+  color: #202124 !important;
+  opacity: 1 !important;
+  border: 1px solid #9da3ab !important;
+}
+.ed.card-edit .sel .panel .light-option { color: #202124 !important; }
+.ed.card-edit .sel .panel .light-option small { color: #50575e !important; }
+.ed.card-edit .sel .panel .light-option:hover,
+.ed.card-edit .sel .panel .light-option:focus-visible { background: #e7f2fc !important; }
+.ed.card-edit .sel .panel .fp-dialog-close {
+  position: sticky;
+  top: 0;
+  justify-self: end;
+  grid-column: 1 / -1;
+  background: #f0f2f4;
+  color: #202124;
+  border: 1px solid #a0a7ad;
+  border-radius: 9px;
+  padding: 9px 15px;
+  font: inherit;
+  cursor: pointer;
+  z-index: 3;
+}
+@media (max-width: 700px) {
+  .ed.card-edit .sel:not(:empty) { padding: 8px; align-items: flex-end; }
+  .ed.card-edit .sel:not(:empty) > .panel {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: min(88dvh, 800px) !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    padding: 12px;
+  }
+}
 /* Fullscreen editor controls: solid, theme-aware, readable on phone and tablet. */
 .ed.card-edit, .ed.card-edit .sel, .ed.card-edit .panel { max-width:100%;min-width:0;box-sizing:border-box; }
 .ed.card-edit .panel { display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:12px;padding:12px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#222); }
@@ -1899,6 +1980,18 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
       '<details class="pl plans-box" open><summary>Pläne</summary><div class="plans"></div></details>' +
       '<details class="more-box"><summary>Weitere Einstellungen</summary><div class="panel more"></div></details></div>';
     this._q = s => root.querySelector(s);
+    if (this._cardMode) {
+      this._q('.sel').addEventListener('click', ev => {
+        if (ev.target === this._q('.sel')) {
+          this._sel = null; this._renderMarks(); this._renderSel();
+        }
+      });
+      this._q('.sel').addEventListener('keydown', ev => {
+        if (ev.key === 'Escape') {
+          ev.stopPropagation(); this._sel = null; this._renderMarks(); this._renderSel();
+        }
+      });
+    }
     this._q('.bar').addEventListener('click', ev => {
       const b = ev.target.closest('button');
       if (!b) return;
@@ -2400,6 +2493,18 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
     if (!m) return;
     const panel = document.createElement('div');
     panel.className = 'panel';
+    if (this._cardMode) {
+      panel.setAttribute('role', 'dialog');
+      panel.setAttribute('aria-modal', 'true');
+      panel.setAttribute('aria-label', 'Entität oder Gegenstand bearbeiten');
+      const close = document.createElement('button');
+      close.type = 'button'; close.className = 'fp-dialog-close';
+      close.textContent = 'Schließen ✕';
+      close.addEventListener('click', () => {
+        this._sel = null; this._renderMarks(); this._renderSel();
+      });
+      panel.appendChild(close);
+    }
     const after = () => { this._renderMarks(); };
     if (this._hass && !customElements.get('ha-entity-picker')) {
       const dl = document.createElement('datalist'); dl.id = 'fp3d-ents';
@@ -2433,7 +2538,7 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
     } else if (m.kind === 'e') {
       const i = m.i, ec = m.ec, setE = fn => { this._edit(c => fn(c.elements[i])); after(); };
       const pos = Array.isArray(ec.pos) ? ec.pos : [];
-      panel.innerHTML += '<h4>Element</h4>';
+      panel.insertAdjacentHTML('beforeend', '<h4>Element</h4>');
       panel.appendChild(this._field('Entität', this._lightPicker(ec.entity, v => setE(e => { e.entity = v; }), null), true));
       panel.appendChild(this._field('Darstellung', this._select(ec.type || 'state-icon',
         [['state-icon', 'Symbol'], ['state-label', 'Wert'], ['state-badge', 'Badge'], ['icon', 'Nur Symbol']], v => setE(e => { e.type = v; if (v === 'icon' && !e.icon) e.icon = this._iconFor(e.entity); }))));
@@ -2463,7 +2568,7 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
         });
         after();
       };
-      panel.innerHTML += '<h4>Leuchte „' + esc(k) + '“' + ((this._lights || {})[k] ? '' : ' (eigene)') + '</h4>';
+      panel.insertAdjacentHTML('beforeend', '<h4>Leuchte „' + esc(k) + '“' + ((this._lights || {})[k] ? '' : ' (eigene)') + '</h4>');
       panel.appendChild(this._field('Licht-Entität', this._lightPicker(o.entity, v => setL(x => { x.entity = v; })), true));
       panel.appendChild(this._field('Symbol statt Scheibe (leer = Scheibe)', this._iconInput(o.icon, v => setL(x => { if (v) x.icon = v; else delete x.icon; })), true));
       panel.appendChild(this._field('Größe Scheibe (m)', this._input(o.size !== undefined ? o.size : '', v => setL(x => { if (String(v).trim()) x.size = num(v, 0.4); else delete x.size; }), 'number', '0.4')));

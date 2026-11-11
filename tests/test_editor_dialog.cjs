@@ -1,0 +1,13 @@
+const fs = require('node:fs');
+const assert = require('node:assert/strict');
+const src = fs.readFileSync('custom_components/smartify_floorplan3d/frontend/smartify-floorplan3d.js','utf8');
+assert(src.includes('.ed.card-edit .sel:not(:empty) {'), 'selected editor opens modal');
+assert(src.includes('position: fixed !important'), 'overlay fixed to viewport');
+assert(src.includes('background: #ffffff !important'), 'opaque modal background');
+assert(src.includes('max-height: min(86dvh, 760px)'), 'modal height is constrained');
+assert(src.includes("panel.setAttribute('aria-modal', 'true')"), 'accessible modal');
+assert(src.includes("close.className = 'fp-dialog-close'"), 'dialog close control');
+assert(src.includes("if (ev.target === this._q('.sel'))"), 'backdrop dismiss');
+assert(src.includes('this._lightPicker(ec.entity'), 'entity picker in modal');
+assert(src.includes('this._lightPicker(o.entity'), 'light picker in modal');
+console.log('2D editor modal regression checks OK');
