@@ -131,3 +131,7 @@ Raffstores/Jalousien und Sektionaltore lassen sich optional in `openings` defini
 ### Fix 1.4.4: Entitäten-Bearbeitungsdialog
 
 Bei ausgewählten Elementen, Leuchten und Gegenständen öffnet die 2D-Draufsicht jetzt einen **deckenden, responsiven Dialog** über der Kartenfläche. Er ist unabhängig vom Plan-Zoom, hat einen eigenen Scrollbereich und eine Schließen-Schaltfläche. Entitätssuche und Dropdowns sind innerhalb des Dialogs anklickbar. Auf Mobilgeräten wird der Dialog als Bottom-Sheet dargestellt.
+
+### Fix 1.4.5: Nativer Vordergrund-Dialog
+
+Die Entitäten- und Gegenstandsauswahl verwendet jetzt das native HTML-`dialog`-Element mit `showModal()`. Dadurch liegt sie in der Browser-Top-Layer statt in einem durch Scrollcontainer und CSS-Stapelkontexte beeinflussbaren `div`. Einfache rechteckige Dialogfläche, deckender Hintergrund, gerundete Ecken und auf schmalen Displays ein Bottom-Sheet. Die normale Karten- und Planansicht bleibt unverändert.

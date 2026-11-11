@@ -5,7 +5,7 @@
  * Elemente wie bei picture-elements (state-icon, state-label, custom:...) mit pos: [x, y] bzw. [x, y, h] in Plan-Metern;
  * am einfachsten im Karten-Editor per Drag & Drop in der Draufsicht platzieren. */
 (() => {
-const VERSION = '1.4.4';
+const VERSION = '1.4.5';
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js';
 const CTRL_URL = 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js';
 
@@ -1938,6 +1938,59 @@ details .panel { border: 0; padding: 8px 0 0; }
 .plans .it .m { font-size: 12px; color: var(--secondary-text-color); flex: 1; min-width: 120px; }
 .plans .ok { color: var(--success-color, #43a047); font-size: 13px; }
 .plans .bad { color: var(--error-color, #db4437); font-size: 13px; }
+/* Native dialog top layer: no parent stacking/scroll context can place it behind the plan. */
+.ed.card-edit dialog.sel:not([open]) { display: none !important; }
+.ed.card-edit dialog.sel[open] {
+  position: fixed !important;
+  inset: auto !important;
+  top: 50% !important;
+  left: 50% !important;
+  bottom: auto !important;
+  right: auto !important;
+  transform: translate(-50%, -50%) !important;
+  display: block !important;
+  width: min(700px, calc(100vw - 24px)) !important;
+  max-width: calc(100vw - 24px) !important;
+  height: auto !important;
+  max-height: min(86dvh, 760px) !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: auto !important;
+  background: #fff !important;
+  color: #202124 !important;
+  border: 1px solid #a0a7ad !important;
+  border-radius: 12px !important;
+  box-shadow: 0 16px 60px rgba(0,0,0,.5) !important;
+  box-sizing: border-box !important;
+}
+.ed.card-edit dialog.sel::backdrop { background: rgba(0,0,0,.58); }
+.ed.card-edit dialog.sel[open] > .panel {
+  width: 100% !important;
+  max-width: 100% !important;
+  max-height: none !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: #fff !important;
+  color: #202124 !important;
+  overflow: visible !important;
+}
+.ed.card-edit dialog.sel .fp-field, .ed.card-edit dialog.sel .fp-field-title, .ed.card-edit dialog.sel h4 { color:#202124 !important; }
+.ed.card-edit dialog.sel input, .ed.card-edit dialog.sel select, .ed.card-edit dialog.sel .light-results {
+  background:#fff !important; color:#202124 !important; opacity:1 !important;
+}
+@media (max-width: 700px) {
+  .ed.card-edit dialog.sel[open] {
+    top: auto !important;
+    left: 8px !important;
+    right: 8px !important;
+    bottom: max(8px, env(safe-area-inset-bottom)) !important;
+    transform: none !important;
+    width: calc(100vw - 16px) !important;
+    max-height: min(86dvh, 800px) !important;
+  }
+}
 `;
 const DOMAIN_ICONS = { light: 'mdi:lightbulb', switch: 'mdi:toggle-switch', fan: 'mdi:fan', cover: 'mdi:window-shutter', climate: 'mdi:thermostat',
   sensor: 'mdi:eye', binary_sensor: 'mdi:checkbox-blank-circle-outline', camera: 'mdi:cctv', media_player: 'mdi:speaker', lock: 'mdi:lock',
@@ -1974,13 +2027,16 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
       (this._cardMode ? '<button type="button" class="b" data-filter="object" aria-pressed="false">Gegenstände anzeigen</button>' : '') +
       '<span class="hint"></span></div>' +
       (this._cardMode ? '<div class="zoom-controls" aria-label="Grundriss-Zoom"><button type="button" data-zoom="out" aria-label="Verkleinern">−</button><span data-zoom-value>100 %</span><button type="button" data-zoom="in" aria-label="Vergrößern">+</button><button type="button" data-zoom="fit">Einpassen</button></div>' : '') +
-      '<div class="err" hidden></div><div class="plan-scroll"><div class="plan"><svg></svg></div></div><div class="sel"></div>' +
+      '<div class="err" hidden></div><div class="plan-scroll"><div class="plan"><svg></svg></div></div><dialog class="sel" aria-label="Entität oder Gegenstand bearbeiten"></dialog>' +
       (this._cardMode ? '<div class="bar savebar"><button class="b" data-save="yes">Änderungen im Plan speichern</button><span class="hint">Positionen werden in der jeweiligen JSON-Datei gespeichert.</span></div>' : '') +
       (!this._cardMode ? '<p class="hint">Entitäten, Leuchten und 3D-Gegenstände bearbeitest du direkt auf der Karte über das Stift-Symbol.</p>' : '') +
       '<details class="pl plans-box" open><summary>Pläne</summary><div class="plans"></div></details>' +
       '<details class="more-box"><summary>Weitere Einstellungen</summary><div class="panel more"></div></details></div>';
     this._q = s => root.querySelector(s);
     if (this._cardMode) {
+      this._q('.sel').addEventListener('close', () => {
+        if (this._sel !== null) { this._sel = null; this._renderMarks(); this._renderSel(); }
+      });
       this._q('.sel').addEventListener('click', ev => {
         if (ev.target === this._q('.sel')) {
           this._sel = null; this._renderMarks(); this._renderSel();
@@ -2490,7 +2546,7 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
     const box = this._q('.sel');
     box.textContent = '';
     const m = this._sel && this._vb ? this._marks().find(x => x.id === this._sel) : null;
-    if (!m) return;
+    if (!m) { if (this._cardMode && box.open) box.close(); return; }
     const panel = document.createElement('div');
     panel.className = 'panel';
     if (this._cardMode) {
@@ -2587,6 +2643,7 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
       panel.appendChild(row);
     }
     box.appendChild(panel);
+    if (this._cardMode && !box.open) box.showModal();
   }
   // ----- Pläne: Liste, Import, als Ansicht hinzufügen, löschen
   async _renderPlans(note) {
