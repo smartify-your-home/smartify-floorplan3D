@@ -5,6 +5,11 @@ Jeder Versions-Commit erhält einen lesbaren Titel nach dem Schema
 `vX.Y.Z – Kurzbeschreibung`. Die automatisch erzeugte Git-Commit-ID
 (SHA) ist davon unabhängig und kann technisch nicht ersetzt werden.
 
+## v1.4.7 – Dialog-CSS bereinigt
+- Alte Vollbild-CSS-Regeln aus dem 2D-Entitätendialog entfernt, die den modalen Dialog fälschlich bildschirmgroß und oval dargestellt haben.
+- Nur noch eine zusammenhängende CSS-Definition für den nativen Dialog, inklusive deckendem Hintergrund und mobiler Ansicht.
+- Plandatenformat und Funktionen unverändert.
+
 ## v1.4.6 – Einheitliche Versionskennzeichnung
 - Versionsnummern in Home-Assistant-Manifest, Python-Konstanten und JavaScript synchronisiert.
 - Verbindliches Schema für lesbare Versions-Commit-Titel und Änderungsverlauf eingeführt.

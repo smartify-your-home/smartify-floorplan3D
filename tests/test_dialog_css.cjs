@@ -1,0 +1,13 @@
+const fs = require('fs');
+const assert = require('assert');
+const code = fs.readFileSync('custom_components/smartify_floorplan3d/frontend/smartify-floorplan3d.js', 'utf8');
+const css = code.split('const ED_CSS = `')[1]?.split('`;')[0];
+assert(css, 'Editor CSS must exist');
+assert(!css.includes('.ed.card-edit .sel:not(:empty)'), 'obsolete viewport-sized overlay must be removed');
+assert(!css.includes('width: 100vw !important'), 'no viewport-sized selection dialog');
+assert(!css.includes('height: 100dvh !important'), 'no full-height selection dialog');
+assert(css.includes('dialog.sel[open]'), 'native dialog style must be present');
+assert(css.includes('dialog.sel::backdrop'), 'native modal backdrop must be present');
+assert(css.includes('background: #fff !important'), 'dialog must be opaque');
+assert(code.includes('box.showModal()'), 'selection dialog must use native modal API');
+console.log('Dialog CSS regression checks passed');

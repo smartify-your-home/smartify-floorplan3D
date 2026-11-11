@@ -5,7 +5,7 @@
  * Elemente wie bei picture-elements (state-icon, state-label, custom:...) mit pos: [x, y] bzw. [x, y, h] in Plan-Metern;
  * am einfachsten im Karten-Editor per Drag & Drop in der Draufsicht platzieren. */
 (() => {
-const VERSION = '1.4.6';
+const VERSION = '1.4.7';
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js';
 const CTRL_URL = 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js';
 
@@ -1822,87 +1822,6 @@ button.b.warn { color: var(--error-color, #db4437); border-color: currentColor; 
 .ed.card-edit .plans-box, .ed.card-edit .more-box { display: none; }
 .ed.card-edit .bar.savebar { position:sticky;top:0;z-index:10;background:var(--primary-background-color,#fafafa);padding:8px 0; }
 
-/* v1.4.4: Keep the object properties above the floorplan in a fully opaque modal.
-   The fullscreen plan editor is already appended to document.body.  Its own
-   selection UI must never depend on the SVG viewport or plan scroll area. */
-.ed.card-edit .sel:not(:empty) {
-  position: fixed !important;
-  inset: 0 !important;
-  z-index: 2147483645 !important;
-  display: flex !important;
-  align-items: center;
-  justify-content: center;
-  padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
-  margin: 0 !important;
-  width: 100vw !important;
-  height: 100dvh !important;
-  max-height: 100dvh !important;
-  box-sizing: border-box !important;
-  background: rgba(0, 0, 0, 0.58) !important;
-  isolation: isolate;
-  overflow: hidden !important;
-  pointer-events: auto !important;
-}
-.ed.card-edit .sel:not(:empty) > .panel {
-  position: relative !important;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
-  width: min(100%, 700px) !important;
-  min-width: 0;
-  max-width: min(100%, 700px) !important;
-  max-height: min(86dvh, 760px) !important;
-  overflow: auto !important;
-  overscroll-behavior: contain;
-  padding: 18px;
-  border: 1px solid #a0a0a0;
-  border-radius: 14px;
-  /* Solid backing even with transparent custom card themes. */
-  background: #ffffff !important;
-  color: #202124 !important;
-  box-shadow: 0 16px 60px rgba(0,0,0,.5);
-  opacity: 1 !important;
-  backdrop-filter: none !important;
-}
-.ed.card-edit .sel .panel .fp-field,
-.ed.card-edit .sel .panel .fp-field-title,
-.ed.card-edit .sel .panel h4 { color: #202124 !important; }
-.ed.card-edit .sel .panel input,
-.ed.card-edit .sel .panel select,
-.ed.card-edit .sel .panel .light-results {
-  background: #ffffff !important;
-  color: #202124 !important;
-  opacity: 1 !important;
-  border: 1px solid #9da3ab !important;
-}
-.ed.card-edit .sel .panel .light-option { color: #202124 !important; }
-.ed.card-edit .sel .panel .light-option small { color: #50575e !important; }
-.ed.card-edit .sel .panel .light-option:hover,
-.ed.card-edit .sel .panel .light-option:focus-visible { background: #e7f2fc !important; }
-.ed.card-edit .sel .panel .fp-dialog-close {
-  position: sticky;
-  top: 0;
-  justify-self: end;
-  grid-column: 1 / -1;
-  background: #f0f2f4;
-  color: #202124;
-  border: 1px solid #a0a7ad;
-  border-radius: 9px;
-  padding: 9px 15px;
-  font: inherit;
-  cursor: pointer;
-  z-index: 3;
-}
-@media (max-width: 700px) {
-  .ed.card-edit .sel:not(:empty) { padding: 8px; align-items: flex-end; }
-  .ed.card-edit .sel:not(:empty) > .panel {
-    width: 100% !important;
-    max-width: 100% !important;
-    max-height: min(88dvh, 800px) !important;
-    grid-template-columns: minmax(0, 1fr) !important;
-    padding: 12px;
-  }
-}
 /* Fullscreen editor controls: solid, theme-aware, readable on phone and tablet. */
 .ed.card-edit, .ed.card-edit .sel, .ed.card-edit .panel { max-width:100%;min-width:0;box-sizing:border-box; }
 .ed.card-edit .panel { display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:12px;padding:12px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#222); }
@@ -1938,47 +1857,84 @@ details .panel { border: 0; padding: 8px 0 0; }
 .plans .it .m { font-size: 12px; color: var(--secondary-text-color); flex: 1; min-width: 120px; }
 .plans .ok { color: var(--success-color, #43a047); font-size: 13px; }
 .plans .bad { color: var(--error-color, #db4437); font-size: 13px; }
-/* Native dialog top layer: no parent stacking/scroll context can place it behind the plan. */
+/* A single native dialog rule set. Do not style dialog.sel via :not(:empty):
+   it would incorrectly make the dialog viewport-sized and render a huge oval. */
+.ed.card-edit dialog.sel { box-sizing: border-box; }
 .ed.card-edit dialog.sel:not([open]) { display: none !important; }
 .ed.card-edit dialog.sel[open] {
   position: fixed !important;
-  inset: auto !important;
+  inset: 0 !important;
+  display: block !important;
   top: 50% !important;
   left: 50% !important;
-  bottom: auto !important;
   right: auto !important;
+  bottom: auto !important;
   transform: translate(-50%, -50%) !important;
-  display: block !important;
+  margin: 0 !important;
   width: min(700px, calc(100vw - 24px)) !important;
   max-width: calc(100vw - 24px) !important;
-  height: auto !important;
-  max-height: min(86dvh, 760px) !important;
+  height: fit-content !important;
+  max-height: min(84dvh, 760px) !important;
   padding: 0 !important;
-  margin: 0 !important;
-  overflow: auto !important;
-  background: #fff !important;
-  color: #202124 !important;
   border: 1px solid #a0a7ad !important;
   border-radius: 12px !important;
-  box-shadow: 0 16px 60px rgba(0,0,0,.5) !important;
-  box-sizing: border-box !important;
+  background: #fff !important;
+  color: #202124 !important;
+  opacity: 1 !important;
+  backdrop-filter: none !important;
+  box-shadow: 0 16px 60px #0007 !important;
+  overflow: auto !important;
+  overscroll-behavior: contain;
 }
-.ed.card-edit dialog.sel::backdrop { background: rgba(0,0,0,.58); }
+.ed.card-edit dialog.sel::backdrop {
+  background: rgba(0, 0, 0, 0.52) !important;
+  backdrop-filter: none !important;
+}
 .ed.card-edit dialog.sel[open] > .panel {
+  display: grid !important;
   width: 100% !important;
+  min-width: 0 !important;
   max-width: 100% !important;
+  height: auto !important;
   max-height: none !important;
+  padding: 16px !important;
   margin: 0 !important;
+  overflow: visible !important;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
   border: 0 !important;
   border-radius: 0 !important;
   box-shadow: none !important;
   background: #fff !important;
   color: #202124 !important;
-  overflow: visible !important;
 }
-.ed.card-edit dialog.sel .fp-field, .ed.card-edit dialog.sel .fp-field-title, .ed.card-edit dialog.sel h4 { color:#202124 !important; }
-.ed.card-edit dialog.sel input, .ed.card-edit dialog.sel select, .ed.card-edit dialog.sel .light-results {
-  background:#fff !important; color:#202124 !important; opacity:1 !important;
+.ed.card-edit dialog.sel .fp-field,
+.ed.card-edit dialog.sel .fp-field-title,
+.ed.card-edit dialog.sel h4 { color: #202124 !important; }
+.ed.card-edit dialog.sel .fp-field input,
+.ed.card-edit dialog.sel .fp-field select,
+.ed.card-edit dialog.sel .light-picker input,
+.ed.card-edit dialog.sel .light-results {
+  background: #fff !important;
+  color: #202124 !important;
+  opacity: 1 !important;
+  border-color: #9da3ab !important;
+}
+.ed.card-edit dialog.sel .light-option { color: #202124 !important; }
+.ed.card-edit dialog.sel .light-option small { color: #50575e !important; }
+.ed.card-edit dialog.sel .light-option:hover,
+.ed.card-edit dialog.sel .light-option:focus-visible { background: #e7f2fc !important; }
+.ed.card-edit dialog.sel .fp-dialog-close {
+  position: sticky;
+  top: 0;
+  justify-self: end;
+  grid-column: 1 / -1;
+  z-index: 2;
+  border: 1px solid #a0a7ad;
+  border-radius: 9px;
+  padding: 9px 15px;
+  background: #f0f2f4;
+  color: #202124;
+  cursor: pointer;
 }
 @media (max-width: 700px) {
   .ed.card-edit dialog.sel[open] {
@@ -1986,11 +1942,17 @@ details .panel { border: 0; padding: 8px 0 0; }
     left: 8px !important;
     right: 8px !important;
     bottom: max(8px, env(safe-area-inset-bottom)) !important;
+    inset: auto 8px max(8px, env(safe-area-inset-bottom)) 8px !important;
     transform: none !important;
     width: calc(100vw - 16px) !important;
     max-height: min(86dvh, 800px) !important;
   }
+  .ed.card-edit dialog.sel[open] > .panel {
+    grid-template-columns: minmax(0, 1fr) !important;
+    padding: 12px !important;
+  }
 }
+
 `;
 const DOMAIN_ICONS = { light: 'mdi:lightbulb', switch: 'mdi:toggle-switch', fan: 'mdi:fan', cover: 'mdi:window-shutter', climate: 'mdi:thermostat',
   sensor: 'mdi:eye', binary_sensor: 'mdi:checkbox-blank-circle-outline', camera: 'mdi:cctv', media_player: 'mdi:speaker', lock: 'mdi:lock',
