@@ -5,7 +5,7 @@
  * Elemente wie bei picture-elements (state-icon, state-label, custom:...) mit pos: [x, y] bzw. [x, y, h] in Plan-Metern;
  * am einfachsten im Karten-Editor per Drag & Drop in der Draufsicht platzieren. */
 (() => {
-const VERSION = '1.4.2';
+const VERSION = '1.4.3';
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js';
 const CTRL_URL = 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js';
 
@@ -1821,6 +1821,26 @@ button.b.warn { color: var(--error-color, #db4437); border-color: currentColor; 
 @media (max-width:700px) { .ed.card-edit .panel { grid-template-columns:minmax(0,1fr); } .ed.card-edit .panel .full { grid-column:1; } .ed.card-edit .bar { gap:8px; } }
 .ed.card-edit .plans-box, .ed.card-edit .more-box { display: none; }
 .ed.card-edit .bar.savebar { position:sticky;top:0;z-index:10;background:var(--primary-background-color,#fafafa);padding:8px 0; }
+
+/* Fullscreen editor controls: solid, theme-aware, readable on phone and tablet. */
+.ed.card-edit, .ed.card-edit .sel, .ed.card-edit .panel { max-width:100%;min-width:0;box-sizing:border-box; }
+.ed.card-edit .panel { display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:12px;padding:12px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#222); }
+.ed.card-edit .fp-field { display:flex;flex-direction:column;gap:5px;min-width:0;max-width:100%;color:var(--primary-text-color,#222);font-size:13px; }
+.ed.card-edit .fp-field-title { font-weight:600;opacity:1; }
+.ed.card-edit .fp-field > input, .ed.card-edit .fp-field > select, .ed.card-edit .fp-field > ha-entity-picker, .ed.card-edit .fp-field > ha-icon-picker { display:block;box-sizing:border-box;min-width:0;width:100%;max-width:100%;min-height:40px;font-size:16px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#222);opacity:1; }
+.ed.card-edit .light-picker { position:relative;min-width:0;width:100%;max-width:100%; }
+.ed.card-edit .light-picker input { min-height:42px;font-size:16px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#222);opacity:1; }
+.ed.card-edit .light-picker .light-results { position:relative;z-index:15;display:flex;flex-direction:column;gap:2px;max-height:min(270px,36vh);overflow-y:auto;overscroll-behavior:contain;background:var(--card-background-color,#fff);box-shadow:0 3px 12px #0002; }
+.ed.card-edit .light-picker .light-results[hidden] { display:none; }
+.ed.card-edit .light-option { display:flex;flex-direction:column;gap:2px;text-align:left;min-height:45px;padding:9px;border-radius:6px;color:var(--primary-text-color,#222); }
+.ed.card-edit .light-option small { font-size:11px;color:var(--secondary-text-color,#666); }
+.ed.card-edit .light-empty { padding:10px;color:var(--secondary-text-color,#666); }
+.ed.card-edit .light-option:focus-visible, .ed.card-edit .light-option:hover { background:var(--secondary-background-color,#eee); }
+/* Furniture footprints are drawn on the floor; tapping selects one without covering it with icons. */
+.plan svg .fp-object { cursor:pointer;pointer-events:visiblePainted; }
+.plan svg .fp-object > * { vector-effect:non-scaling-stroke;stroke-width:1px; }
+.plan svg .fp-object.selected > * { stroke:var(--primary-color,#03a9f4);stroke-width:2px; }
+
 .light-picker { display:flex;flex-direction:column;gap:4px; min-width:0; }
 .light-picker input { width:100%;box-sizing:border-box; }
 .light-picker .light-results { max-height:220px;overflow:auto;border:1px solid var(--divider-color,#8885);border-radius:8px;background:var(--card-background-color,#fff); }
@@ -1904,7 +1924,7 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
       });
     }
     if (this._cardMode) this._q('[data-save]').addEventListener('click', () => this._savePlanEdits());
-    this._loadPickers();
+    if (!this._cardMode) this._loadPickers();
     this._load();
     if (!this._cardMode) this._renderPlans();
   }
@@ -1987,6 +2007,32 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
     const display = this._q('[data-zoom-value]');
     if (display) display.textContent = Math.round(zoom * 100) + ' %';
   }
+  _itemFootprint(part, it) {
+    // Format-2 block primitives have [type, size, [x,height,y], rotation,...].
+    // Derive a top-down outline without loading the 3D scene or changing the JSON.
+    const prims = Array.isArray(it.prims) ? it.prims : (part.blocks || {})[it.block];
+    if (!Array.isArray(prims)) return null;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const prim of prims) {
+      if (!Array.isArray(prim) || !Array.isArray(prim[2])) continue;
+      const type = prim[0], dim = prim[1], at = prim[2];
+      if (!Array.isArray(dim) || type === 'glb') continue;
+      let w = 0, d = 0;
+      if (type === 'box') { w = Number(dim[0]); d = Number(dim[2]); }
+      else if (['cyl','sphere','ico'].includes(type)) { w = d = 2 * Number(dim[0]); }
+      else if (type === 'ring') { w = d = 2 * Number(dim[1]); }
+      if (!(w > 0 && d > 0)) continue;
+      // A primitive can have a local Y rotation: include it in its XY bounding box.
+      const ry = Array.isArray(prim[3]) ? Number(prim[3][1]) || 0 : 0;
+      const cw = Math.abs(Math.cos(ry)), sw = Math.abs(Math.sin(ry));
+      const bw = w * cw + d * sw, bd = d * cw + w * sw;
+      const x = Number(at[0]) || 0, y = Number(at[2]) || 0;
+      minX = Math.min(minX, x - bw/2); maxX = Math.max(maxX, x + bw/2);
+      minY = Math.min(minY, y - bd/2); maxY = Math.max(maxY, y + bd/2);
+    }
+    if (!Number.isFinite(minX)) return { x:-0.16, y:-0.16, w:0.32, h:0.32 };
+    return { x:minX, y:minY, w:Math.max(.06,maxX-minX), h:Math.max(.06,maxY-minY) };
+  }
   _drawPlan() {
     const vb = this._vb, svg = this._q('.plan svg'), plan = this._q('.plan');
     plan.style.aspectRatio = vb.w + ' / ' + vb.h;
@@ -2009,6 +2055,18 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
           s += '<rect x="' + x0 + '" y="' + y0 + '" width="' + (x1 - x0) + '" height="' + (y1 - y0) + '" fill="#fff" fill-opacity="' + (t === 'rug' ? 0.35 : 0.75) +
             '" stroke="#8d949b" stroke-width="0.02"/>';
         } else if (t === 'plant' || t === 'cyl') s += '<circle cx="' + x0 + '" cy="' + y0 + '" r="' + (t === 'plant' ? 0.18 : 0.12) + '" fill="#9cb98a"/>';
+      });
+      // Format-2 furniture/appliances: show their projected footprint at true position.
+      // A single outline per block avoids painting 95 large object markers.
+      (p.items || []).forEach((it, ii) => {
+        if (!it || Array.isArray(it) || !Array.isArray(it.pos)) return;
+        const foot = this._itemFootprint(p, it);
+        if (!foot) return;
+        const index = this._parts.indexOf(p), id = 'o' + index + '_' + ii;
+        const rot = -(Number(it.rot) || 0);
+        s += '<g class="fp-object' + (id === this._sel ? ' selected' : '') + '" data-object-id="' + id + '" transform="translate(' + Number(it.pos[0]) + ' ' + Number(it.pos[1]) + ') rotate(' + rot + ')">' +
+          '<rect x="' + foot.x.toFixed(3) + '" y="' + foot.y.toFixed(3) + '" width="' + foot.w.toFixed(3) + '" height="' + foot.h.toFixed(3) + '" rx="0.03" fill="#a5b5b9" fill-opacity="0.55" stroke="#64748b" stroke-width="0.018"/>' +
+          '</g>';
       });
       (p.walls || []).forEach(w => { s += '<path d="' + path(w.o, w.h) + '" fill="#4b5560" fill-rule="evenodd"/>'; });
       (p.attika || []).forEach(a => { s += '<path d="' + path(a.o, a.h) + '" fill="#a7a19a" fill-rule="evenodd"/>'; });
@@ -2126,14 +2184,15 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
       plan.setPointerCapture(ev.pointerId);
       if (pointers.size === 2 && this._cardMode) { beginPinch(); return; }
       const mk = ev.target.closest('.mk:not([hidden])');
-      if (this._placing && !mk) {
+      const footprint = !mk && ev.target.closest('.fp-object[data-object-id]');
+      if (this._placing && !mk && !footprint) {
         const p = point(ev).map(r2);
         if (this._placing === 'add') this._addElement(p); else this._addLight(p);
         this._placing = null; this._renderBar();
         return;
       }
-      if (mk) {
-        drag = { id: mk.dataset.id, mk, pointer: ev.pointerId, x0: ev.clientX, y0: ev.clientY, moved: false, p: null };
+      if (mk || footprint) {
+        drag = { id: mk ? mk.dataset.id : footprint.dataset.objectId, mk, pointer: ev.pointerId, x0: ev.clientX, y0: ev.clientY, moved: false, p: null };
       } else {
         pan = { pointer: ev.pointerId, x: ev.clientX, y: ev.clientY, left: scroll.scrollLeft, top: scroll.scrollTop, moved: false };
       }
@@ -2163,8 +2222,10 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
       p[0] = Math.min(vb.x + vb.w, Math.max(vb.x, p[0]));
       p[1] = Math.min(vb.y + vb.h, Math.max(vb.y, p[1]));
       drag.p = p.map(r2);
-      drag.mk.style.left = ((drag.p[0] - vb.x) / vb.w * 100) + '%';
-      drag.mk.style.top = ((drag.p[1] - vb.y) / vb.h * 100) + '%';
+      if (drag.mk) {
+        drag.mk.style.left = ((drag.p[0] - vb.x) / vb.w * 100) + '%';
+        drag.mk.style.top = ((drag.p[1] - vb.y) / vb.h * 100) + '%';
+      }
     });
     const end = ev => {
       if (!pointers.has(ev.pointerId)) return;
@@ -2174,6 +2235,7 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
         const d = drag; drag = null;
         this._sel = d.id;
         if (d.moved && d.p) this._move(d.id, d.p);
+        if (d.id[0] === 'o') this._drawPlan();
         this._renderMarks(); this._renderSel();
       } else if (pan && pan.pointer === ev.pointerId) {
         const moved = pan.moved; pan = null;
@@ -2238,7 +2300,7 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
 
   // ----- Bearbeitungsfeld des gewählten Markers
   _picker(value, cb, domains) {
-    if (customElements.get('ha-entity-picker')) {
+    if (!this._cardMode && customElements.get('ha-entity-picker')) {
       const p = document.createElement('ha-entity-picker');
       p.hass = this._hass; p.value = value || ''; p.allowCustomEntity = true;
       if (domains) p.includeDomains = domains;
@@ -2251,31 +2313,47 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
     i.addEventListener('change', () => cb(i.value.trim()));
     return i;
   }
-  _lightPicker(value, cb) {
+  _lightPicker(value, cb, domains = ['light', 'switch']) {
     const box = document.createElement('div'); box.className = 'light-picker';
     const input = document.createElement('input'); input.type = 'search'; input.value = value || '';
-    input.placeholder = 'Leuchte nach Name oder Entity-ID suchen';
+    input.autocomplete = 'off'; input.placeholder = domains ? 'Entität nach Name oder ID suchen' : 'Alle Entitäten durchsuchen';
+    input.setAttribute('aria-label', 'Home Assistant Entität suchen');
     const list = document.createElement('div'); list.className = 'light-results'; list.hidden = true;
-    const matches = Object.entries((this._hass && this._hass.states) || {})
-      .filter(([id]) => id.startsWith('light.') || id.startsWith('switch.'))
-      .map(([id, state]) => ({ id, name: (state.attributes && state.attributes.friendly_name) || id }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+    const entities = Object.entries((this._hass && this._hass.states) || {})
+      .filter(([id]) => !domains || domains.includes(id.split('.')[0]))
+      .map(([id, state]) => ({ id, name: String(state.attributes?.friendly_name || id) }))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    const close = () => { list.hidden = true; };
+    const choose = id => {
+      value = id; input.value = id; close(); cb(id);
+    };
     const show = () => {
-      list.replaceChildren(); const q = input.value.trim().toLocaleLowerCase();
-      const rows = matches.filter(x => x.id.toLocaleLowerCase().includes(q) || x.name.toLocaleLowerCase().includes(q)).slice(0, 60);
-      rows.forEach(x => { const b = document.createElement('button'); b.type = 'button'; b.textContent = x.name + ' · ' + x.id;
-        b.addEventListener('click', () => { input.value = x.id; value = x.id; list.hidden = true; cb(x.id); }); list.appendChild(b); });
-      if (!rows.length) { const t = document.createElement('span'); t.textContent = 'Keine passende Entität'; list.appendChild(t); }
+      const q = input.value.trim().toLocaleLowerCase();
+      const rows = entities.filter(x => x.id.toLocaleLowerCase().includes(q) || x.name.toLocaleLowerCase().includes(q)).slice(0, 40);
+      list.replaceChildren();
+      for (const x of rows) {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'light-option';
+        const name = document.createElement('span'); name.textContent = x.name;
+        const id = document.createElement('small'); id.textContent = x.id;
+        b.append(name, id);
+        // Do not prevent pointerdown: iOS may suppress the following synthetic click.
+        b.addEventListener('click', ev => { ev.preventDefault(); ev.stopPropagation(); choose(x.id); });
+        list.appendChild(b);
+      }
+      if (!rows.length) { const empty = document.createElement('div'); empty.className = 'light-empty'; empty.textContent = 'Keine passenden Entitäten'; list.appendChild(empty); }
       list.hidden = false;
     };
-    input.addEventListener('focus', show); input.addEventListener('input', show);
-    input.addEventListener('keydown', ev => { if (ev.key === 'Escape') { list.hidden = true; input.blur(); }
-      if (ev.key === 'Enter') { ev.preventDefault(); const id = input.value.trim(); if (!id || matches.some(x => x.id === id)) { value = id; list.hidden = true; cb(id); } } });
-    input.addEventListener('change', () => { const id = input.value.trim(); if (!id || matches.some(x => x.id === id)) { if (id !== value) { value = id; cb(id); } } else input.value = value || ''; });
+    input.addEventListener('focus', show);
+    input.addEventListener('input', show);
+    input.addEventListener('keydown', ev => {
+      if (ev.key === 'Escape') { close(); input.blur(); }
+      if (ev.key === 'Enter') { ev.preventDefault(); const id = input.value.trim(); if (entities.some(e => e.id === id) || id === '') choose(id); }
+    });
+    // No onchange handler: it fires after clicking an option and can revert the selection.
     box.append(input, list); return box;
   }
   _iconInput(value, cb) {
-    if (customElements.get('ha-icon-picker')) {
+    if (!this._cardMode && customElements.get('ha-icon-picker')) {
       const p = document.createElement('ha-icon-picker');
       p.hass = this._hass; p.value = value || '';
       p.addEventListener('value-changed', ev => cb(ev.detail.value || ''));
@@ -2287,10 +2365,14 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
     return i;
   }
   _field(label, node, full) {
-    const l = document.createElement('label');
-    if (full) l.className = 'full';
-    l.append(label, node);
-    return l;
+    // Not a <label>: wrapping option buttons/selects in a label causes click-to-focus
+    // forwarding on iOS/Safari and can immediately close or reopen an entity list.
+    const field = document.createElement('div');
+    field.className = 'fp-field' + (full ? ' full' : '');
+    const caption = document.createElement('span'); caption.className = 'fp-field-title';
+    caption.textContent = label;
+    field.append(caption, node);
+    return field;
   }
   _input(value, cb, type, ph) {
     const i = document.createElement('input');
@@ -2352,7 +2434,7 @@ class SmartifyFloorplan3dEditor extends HTMLElement {
       const i = m.i, ec = m.ec, setE = fn => { this._edit(c => fn(c.elements[i])); after(); };
       const pos = Array.isArray(ec.pos) ? ec.pos : [];
       panel.innerHTML += '<h4>Element</h4>';
-      panel.appendChild(this._field('Entität', this._picker(ec.entity, v => setE(e => { e.entity = v; })), true));
+      panel.appendChild(this._field('Entität', this._lightPicker(ec.entity, v => setE(e => { e.entity = v; }), null), true));
       panel.appendChild(this._field('Darstellung', this._select(ec.type || 'state-icon',
         [['state-icon', 'Symbol'], ['state-label', 'Wert'], ['state-badge', 'Badge'], ['icon', 'Nur Symbol']], v => setE(e => { e.type = v; if (v === 'icon' && !e.icon) e.icon = this._iconFor(e.entity); }))));
       panel.appendChild(this._field('Tippen', this._select((ec.tap_action || {}).action || 'more-info',

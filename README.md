@@ -120,3 +120,10 @@ Raffstores/Jalousien und Sektionaltore lassen sich optional in `openings` defini
 - Leuchten und Entitäten sind kleine, verschiebbare Marker; Gegenstände werden zunächst ausgeblendet und können über **Gegenstände anzeigen** eingeblendet werden.
 - Im Grundriss mit einem Finger über freie Fläche verschieben, mit zwei Fingern zoomen und gleichzeitig verschieben; zum Platzieren/Bewegen einzelner Marker direkt auf diesen ziehen.
 - Die Zoomtasten und **Einpassen** funktionieren weiterhin. Objekte lassen sich nach Anzeige auswählen und ihre Positionen im jeweiligen Plan speichern.
+
+### Karteneditor v1.4.3: Entitäten und Gegenstände
+
+- Im 2D-Editor werden Möbel und technische Geräte aus Format-2-`blocks` als maßstäbliche Grundrissflächen gezeichnet und sind direkt antippbar. Ein selektierter Gegenstand kann verschoben, gedreht oder kopiert werden.
+- Die Entitätenauswahl verwendet im Kartenmodus eine integrierte, durchsuchbare Liste statt eines Home-Assistant-Pickers im Popup. Für Elemente sind alle HA-Domänen, für Leuchten nur `light` und `switch` auswählbar.
+- Such- und Eingabefelder passen sich an schmale Bildschirme an; die Liste belegt höchstens 36 % der Bildschirmhöhe.
+- Positionen und Objekte werden erst mit „Änderungen im Plan speichern“ in die Plan-JSON geschrieben.
