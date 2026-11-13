@@ -5,6 +5,11 @@ Jeder Versions-Commit erhält einen lesbaren Titel nach dem Schema
 `vX.Y.Z – Kurzbeschreibung`. Die automatisch erzeugte Git-Commit-ID
 (SHA) ist davon unabhängig und kann technisch nicht ersetzt werden.
 
+## Unveröffentlicht
+- Eigenes Icon und Logo (Ordner `brand/`, hell und dunkel) – wird ab Home Assistant 2026.3 angezeigt; Vorlage als SVG unter `docs/brand/icon.svg`.
+- Logo im README ergänzt.
+- Keine Änderung an Code oder Planformat.
+
 ## v1.4.8 – Eigenschaftsdialog und Marker eindeutig trennen
 - Fehlerursache: `.sel` wurde zugleich für Auswahlmarker und Dialog verwendet, wodurch die Suche den falschen Knoten traf.
 - Dialog auf `fp-sel` und feste Dialogreferenz umgestellt; Touch-Folgeklick-Schutz ergänzt.
