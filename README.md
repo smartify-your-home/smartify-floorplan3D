@@ -1,3 +1,5 @@
+<p align="center"><img src="https://raw.githubusercontent.com/smartify-your-home/smartify-floorplan3d/main/custom_components/smartify_floorplan3d/brand/logo.png" alt="smartify Floorplan 3D" width="420"></p>
+
 # smartify Floorplan 3D
 
 Drehbarer 3D-Grundriss als Home-Assistant-Integration: liefert die Lovelace-Karte aus, verwaltet die Plan-Dateien (Geschosse und Bereiche) und bringt einen Editor mit Import und Drag & Drop.
